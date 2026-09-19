@@ -52,10 +52,14 @@ spreadsheet.
 - **Trends** — 14-day revenue/profit and trip-volume charts, top clients
   by revenue, top load bringers by loads brought, and top drivers by trips
   completed (only trips with a driver assigned on New Trip count).
-- **Fleet** — trucks, trailers, roadworthy/service due dates with
-  expired/due-soon badges, status (Active / In Repair / Offline), and
-  driver-to-truck assignment. Adding/editing a truck, trailer, or driver
-  opens in a popup dialog rather than an inline form.
+- **Fleet** — leads with a hero card: how many trucks/trailers need
+  attention today (not Active status, or roadworthy/service expired or
+  due soon), plus truck/trailer/active-driver counts, computed client-side
+  once all three lists have loaded. Then trucks, trailers, roadworthy/
+  service due dates with expired/due-soon badges, status (Active / In
+  Repair / Offline), and driver-to-truck assignment. Adding/editing a
+  truck, trailer, or driver opens in a popup dialog rather than an inline
+  form.
 - **Audit Log** — every create/update/deactivate/reactivate across
   Clients, Load Bringers, Trips, Fleet, Expenses, and Settings, with who
   (signed-in user email) and when.

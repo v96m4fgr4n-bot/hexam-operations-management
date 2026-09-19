@@ -1,7 +1,8 @@
 <script>
   var STATE = {
     settings: null, clients: [], loadBringers: [], editingClientId: null, editingLoadBringerId: null,
-    trucks: [], editingTruckId: null, editingTrailerId: null, editingDriverId: null
+    trucks: [], trailers: [], driversAll: [], editingTruckId: null, editingTrailerId: null, editingDriverId: null,
+    fleetLoaded: { trucks: false, trailers: false, drivers: false }
   };
 
   function $(id) { return document.getElementById(id); }
@@ -1048,12 +1049,42 @@
     return '<span class="badge ' + cls + '">' + escapeHtml(status) + '</span>';
   }
 
+  /** Renders once trucks, trailers, and drivers have all loaded - the
+   *  single number that actually matters on this page (how many vehicles
+   *  need attention today), not three raw tables to scan by eye. */
+  function renderFleetHero() {
+    var loaded = STATE.fleetLoaded;
+    if (!loaded.trucks || !loaded.trailers || !loaded.drivers) return;
+
+    var needsAttentionOf = function (list) {
+      return list.filter(function (v) {
+        return v.status !== 'Active' || v.roadworthyStatus === 'expired' || v.roadworthyStatus === 'due-soon' ||
+          v.serviceStatus === 'expired' || v.serviceStatus === 'due-soon';
+      }).length;
+    };
+    var attention = needsAttentionOf(STATE.trucks) + needsAttentionOf(STATE.trailers);
+    var activeDrivers = STATE.driversAll.filter(function (d) { return d.active; }).length;
+
+    var figureEl = $('fleet-attention-count');
+    figureEl.textContent = attention;
+    figureEl.className = 'hero-figure ' + (attention > 0 ? 'negative' : 'positive');
+    $('fleet-attention-caption').textContent = attention > 0 ? 'need attention' : 'All vehicles OK';
+
+    $('fleet-truck-count').textContent = STATE.trucks.length;
+    $('fleet-trailer-count').textContent = STATE.trailers.length;
+    $('fleet-driver-count').textContent = activeDrivers;
+
+    $('fleet-hero').removeAttribute('aria-busy');
+  }
+
   /* ----- Trucks ----- */
 
   function loadTrucks() {
     var wrap = $('trucks-table-wrap');
     google.script.run.withSuccessHandler(function (trucks) {
       STATE.trucks = trucks;
+      STATE.fleetLoaded.trucks = true;
+      renderFleetHero();
       populateDriverTruckSelect_(trucks);
       if (!trucks.length) {
         wrap.innerHTML = '<div class="empty-state">No trucks yet.</div>';
@@ -1079,6 +1110,7 @@
       });
     }).withFailureHandler(function (err) {
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+      $('fleet-hero').removeAttribute('aria-busy');
     }).getTrucks();
   }
 
@@ -1156,6 +1188,9 @@
   function loadTrailers() {
     var wrap = $('trailers-table-wrap');
     google.script.run.withSuccessHandler(function (trailers) {
+      STATE.trailers = trailers;
+      STATE.fleetLoaded.trailers = true;
+      renderFleetHero();
       if (!trailers.length) {
         wrap.innerHTML = '<div class="empty-state">No trailers yet.</div>';
         return;
@@ -1179,6 +1214,7 @@
       });
     }).withFailureHandler(function (err) {
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+      $('fleet-hero').removeAttribute('aria-busy');
     }).getTrailers();
   }
 
@@ -1248,6 +1284,9 @@
   function loadDrivers() {
     var wrap = $('drivers-table-wrap');
     google.script.run.withSuccessHandler(function (drivers) {
+      STATE.driversAll = drivers;
+      STATE.fleetLoaded.drivers = true;
+      renderFleetHero();
       if (!drivers.length) {
         wrap.innerHTML = '<div class="empty-state">No drivers yet.</div>';
         return;
@@ -1290,6 +1329,7 @@
       });
     }).withFailureHandler(function (err) {
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+      $('fleet-hero').removeAttribute('aria-busy');
     }).getDrivers(true);
   }
 
