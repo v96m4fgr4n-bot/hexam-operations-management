@@ -1,0 +1,91 @@
+<script>
+  function readForm() {
+    return {
+      clientName: document.getElementById('clientName').value,
+      oneWayDistanceKm: document.getElementById('oneWayDistanceKm').value,
+      tollFee: document.getElementById('tollFee').value,
+      zrpFee: document.getElementById('zrpFee').value,
+      vidFee: document.getElementById('vidFee').value,
+      otherFeeLabel: document.getElementById('otherFeeLabel').value,
+      otherFeeAmount: document.getElementById('otherFeeAmount').value
+    };
+  }
+
+  function formatCurrency(n) {
+    return '$' + Number(n).toFixed(2);
+  }
+
+  function showError(message) {
+    var el = document.getElementById('error');
+    el.textContent = message;
+    el.hidden = false;
+  }
+
+  function clearError() {
+    var el = document.getElementById('error');
+    el.hidden = true;
+    el.textContent = '';
+  }
+
+  function renderBreakdown(cost) {
+    document.getElementById('b-distance').textContent = cost.roundTripDistanceKm.toFixed(1) + ' km';
+    document.getElementById('b-fuel').textContent = formatCurrency(cost.fuelCost);
+    document.getElementById('b-toll').textContent = formatCurrency(cost.tollFee);
+    document.getElementById('b-zrp').textContent = formatCurrency(cost.zrpFee);
+    document.getElementById('b-vid').textContent = formatCurrency(cost.vidFee);
+
+    var otherRow = document.getElementById('b-other-row');
+    var otherCell = document.getElementById('b-other');
+    if (cost.otherFeeLabel) {
+      otherRow.textContent = cost.otherFeeLabel;
+      otherRow.hidden = false;
+      otherCell.textContent = formatCurrency(cost.otherFeeAmount);
+      otherCell.hidden = false;
+    } else {
+      otherRow.hidden = true;
+      otherCell.hidden = true;
+    }
+
+    document.getElementById('b-total').textContent = formatCurrency(cost.totalCost);
+    document.getElementById('breakdown').hidden = false;
+  }
+
+  document.getElementById('preview-btn').addEventListener('click', function () {
+    clearError();
+    document.getElementById('saved-banner').hidden = true;
+    google.script.run
+      .withSuccessHandler(renderBreakdown)
+      .withFailureHandler(function (err) { showError(err.message || String(err)); })
+      .previewCost(readForm());
+  });
+
+  document.getElementById('trip-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    clearError();
+    var saveBtn = document.getElementById('save-btn');
+    saveBtn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function (cost) {
+        saveBtn.disabled = false;
+        renderBreakdown(cost);
+        var banner = document.getElementById('saved-banner');
+        banner.textContent = 'Trip saved (ID: ' + cost.tripId + ')';
+        banner.hidden = false;
+      })
+      .withFailureHandler(function (err) {
+        saveBtn.disabled = false;
+        showError(err.message || String(err));
+      })
+      .saveTrip(readForm());
+  });
+
+  // Prefill fee placeholders with current Settings defaults (display only —
+  // the server always recomputes from Settings, never from these hints).
+  google.script.run
+    .withSuccessHandler(function (defaults) {
+      document.getElementById('tollFee').placeholder = 'default: ' + defaults.DefaultTollFee;
+      document.getElementById('zrpFee').placeholder = 'default: ' + defaults.DefaultZrpFee;
+      document.getElementById('vidFee').placeholder = 'default: ' + defaults.DefaultVidFee;
+    })
+    .getFormDefaults();
+</script>

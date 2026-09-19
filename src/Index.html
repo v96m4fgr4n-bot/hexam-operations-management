@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('Stylesheet'); ?>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Hexam Bricks</h1>
+        <p class="subtitle">Delivery Trip Cost Calculator</p>
+      </header>
+
+      <form id="trip-form">
+        <label>
+          Client Name
+          <input type="text" id="clientName" required>
+        </label>
+
+        <label>
+          One-Way Distance (km)
+          <input type="number" id="oneWayDistanceKm" min="0.1" step="0.1" required>
+        </label>
+
+        <fieldset>
+          <legend>Fees (defaults from Settings — override if needed)</legend>
+
+          <label>
+            Toll Fee
+            <input type="number" id="tollFee" min="0" step="0.01">
+          </label>
+          <label>
+            ZRP Fee
+            <input type="number" id="zrpFee" min="0" step="0.01">
+          </label>
+          <label>
+            VID Fee
+            <input type="number" id="vidFee" min="0" step="0.01">
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Other Fee (optional)</legend>
+          <label>
+            Label
+            <input type="text" id="otherFeeLabel" placeholder="e.g. Parking">
+          </label>
+          <label>
+            Amount
+            <input type="number" id="otherFeeAmount" min="0" step="0.01">
+          </label>
+        </fieldset>
+
+        <div id="error" class="error" hidden></div>
+
+        <div class="actions">
+          <button type="button" id="preview-btn">Preview Cost</button>
+          <button type="submit" id="save-btn">Save Trip</button>
+        </div>
+      </form>
+
+      <section id="breakdown" class="breakdown" hidden>
+        <h2>Cost Breakdown</h2>
+        <dl>
+          <dt>Round-trip distance</dt><dd id="b-distance"></dd>
+          <dt>Fuel cost</dt><dd id="b-fuel"></dd>
+          <dt>Toll fee</dt><dd id="b-toll"></dd>
+          <dt>ZRP fee</dt><dd id="b-zrp"></dd>
+          <dt>VID fee</dt><dd id="b-vid"></dd>
+          <dt id="b-other-row" hidden></dt><dd id="b-other" hidden></dd>
+          <dt class="total">Total</dt><dd id="b-total" class="total"></dd>
+        </dl>
+      </section>
+
+      <div id="saved-banner" class="saved-banner" hidden></div>
+    </div>
+
+    <?!= include('JavaScript'); ?>
+  </body>
+</html>
