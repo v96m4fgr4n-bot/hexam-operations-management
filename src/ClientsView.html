@@ -1,0 +1,45 @@
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Clients</h1>
+    <p class="page-sub">Manage the clients you deliver bricks to.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3 id="client-form-title">Add client</h3>
+  <form id="client-form">
+    <input type="hidden" id="client-id">
+    <div class="form-grid">
+      <div class="field">
+        <label for="client-name">Client name</label>
+        <input id="client-name" type="text" required>
+      </div>
+      <div class="field">
+        <label for="client-contact">Contact person</label>
+        <input id="client-contact" type="text">
+      </div>
+      <div class="field">
+        <label for="client-phone">Phone</label>
+        <input id="client-phone" type="text">
+      </div>
+      <div class="field">
+        <label for="client-email">Email</label>
+        <input id="client-email" type="email">
+      </div>
+      <div class="field full">
+        <label for="client-address">Address</label>
+        <input id="client-address" type="text">
+      </div>
+    </div>
+    <button type="submit" class="btn primary" id="client-submit">Add client</button>
+    <button type="button" class="btn ghost" id="client-cancel-edit" hidden>Cancel</button>
+    <div class="msg" id="client-msg"></div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>All clients</h3>
+  <div class="table-wrap" id="clients-table-wrap">
+    <div class="empty-state">Loading clients&hellip;</div>
+  </div>
+</div>

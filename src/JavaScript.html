@@ -1,332 +1,361 @@
 <script>
-  var state = {
-    clients: [],       // active clients, for New Trip dropdown
-    settingsLoaded: false,
-    editingClientId: null,
-    loadedScreens: {}
-  };
+  var STATE = { settings: null, clients: [], editingClientId: null };
 
-  /* ---------- Navigation ---------- */
+  function $(id) { return document.getElementById(id); }
 
-  var SCREEN_TITLES = {
-    'new-trip': 'New Trip',
-    'trip-history': 'Trip History',
-    'clients': 'Clients',
-    'settings': 'Settings'
-  };
+  function escapeHtml(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
 
-  document.getElementById('nav').addEventListener('click', function (e) {
-    var btn = e.target.closest('.nav-link');
-    if (!btn) return;
-    showScreen(btn.getAttribute('data-screen'));
+  function money(n) {
+    var symbol = (STATE.settings && STATE.settings.currencySymbol) || '$';
+    return symbol + Number(n || 0).toFixed(2);
+  }
+
+  function showMsg(el, text, isError) {
+    el.textContent = text;
+    el.className = 'msg ' + (isError ? 'error' : 'success');
+  }
+
+  function clearMsg(el) {
+    el.textContent = '';
+    el.className = 'msg';
+  }
+
+  /* ---------- Sidebar navigation ---------- */
+
+  function setView(viewName) {
+    document.querySelectorAll('.nav-item').forEach(function (item) {
+      item.classList.toggle('active', item.getAttribute('data-view') === viewName);
+    });
+    document.querySelectorAll('.view').forEach(function (view) {
+      view.classList.toggle('active', view.id === 'view-' + viewName);
+    });
+    closeSidebar();
+
+    if (viewName === 'trip-history') loadTripHistory();
+    if (viewName === 'clients') loadClients();
+  }
+
+  function openSidebar() {
+    $('sidebar').classList.add('open');
+    $('sidebar-backdrop').classList.add('open');
+  }
+
+  function closeSidebar() {
+    $('sidebar').classList.remove('open');
+    $('sidebar-backdrop').classList.remove('open');
+  }
+
+  document.querySelectorAll('.nav-item').forEach(function (item) {
+    item.addEventListener('click', function () { setView(item.getAttribute('data-view')); });
+    item.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(item.getAttribute('data-view')); }
+    });
   });
 
-  function showScreen(name) {
-    document.querySelectorAll('.nav-link').forEach(function (el) {
-      el.classList.toggle('active', el.getAttribute('data-screen') === name);
-    });
-    document.querySelectorAll('.screen').forEach(function (el) {
-      el.classList.toggle('active', el.id === 'screen-' + name);
-    });
-    document.getElementById('screen-title').textContent = SCREEN_TITLES[name];
+  $('burger').addEventListener('click', openSidebar);
+  $('sidebar-backdrop').addEventListener('click', closeSidebar);
 
-    if (!state.loadedScreens[name]) {
-      state.loadedScreens[name] = true;
-      if (name === 'trip-history') loadTripHistory();
-      if (name === 'clients') loadClients();
-      if (name === 'settings') loadSettingsScreen();
+  /* ---------- Bootstrap ---------- */
+
+  function loadInitialData() {
+    google.script.run.withSuccessHandler(function (settings) {
+      STATE.settings = settings;
+      populateSettingsForm(settings);
+      prefillTripFeesFromSettings();
+      updateTripPreview();
+    }).withFailureHandler(function (err) {
+      showMsg($('trip-msg'), err.message || String(err), true);
+    }).getSettings();
+
+    loadClientsForTripForm();
+  }
+
+  /* ---------- Settings ---------- */
+
+  function populateSettingsForm(settings) {
+    $('settings-fuel-price').value = settings.fuelPricePerLitre;
+    $('settings-fuel-consumption').value = settings.fuelConsumptionLPerKm;
+    $('settings-fuel-rate-preview').value = money(settings.fuelPricePerLitre * settings.fuelConsumptionLPerKm) + ' / km';
+    $('settings-currency').value = settings.currencySymbol;
+    $('settings-toll').value = settings.defaultTollFee;
+    $('settings-zrp').value = settings.defaultZrpFee;
+    $('settings-vid').value = settings.defaultVidFee;
+    $('settings-margin').value = settings.companyMarginPercent;
+  }
+
+  ['settings-fuel-price', 'settings-fuel-consumption'].forEach(function (id) {
+    $(id).addEventListener('input', function () {
+      var price = Number($('settings-fuel-price').value) || 0;
+      var consumption = Number($('settings-fuel-consumption').value) || 0;
+      $('settings-fuel-rate-preview').value = money(price * consumption) + ' / km';
+    });
+  });
+
+  $('settings-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('settings-submit');
+    var msg = $('settings-msg');
+    clearMsg(msg);
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(function (result) {
+      btn.disabled = false;
+      STATE.settings = result.settings;
+      populateSettingsForm(result.settings);
+      showMsg(msg, 'Settings saved.', false);
+      updateTripPreview();
+      prefillTripFeesFromSettings();
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    }).updateSettings({
+      fuelPricePerLitre: Number($('settings-fuel-price').value),
+      fuelConsumptionLPerKm: Number($('settings-fuel-consumption').value),
+      currencySymbol: $('settings-currency').value,
+      defaultTollFee: Number($('settings-toll').value),
+      defaultZrpFee: Number($('settings-zrp').value),
+      defaultVidFee: Number($('settings-vid').value),
+      companyMarginPercent: Number($('settings-margin').value)
+    });
+  });
+
+  /* ---------- Clients ---------- */
+
+  function loadClientsForTripForm() {
+    google.script.run.withSuccessHandler(function (clients) {
+      STATE.clients = clients;
+      var select = $('trip-client');
+      select.innerHTML = clients.length
+        ? clients.map(function (c) { return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + '</option>'; }).join('')
+        : '<option value="">No active clients - add one first</option>';
+    }).withFailureHandler(function (err) {
+      showMsg($('trip-msg'), err.message || String(err), true);
+    }).getClients(false);
+  }
+
+  function loadClients() {
+    var wrap = $('clients-table-wrap');
+    google.script.run.withSuccessHandler(function (clients) {
+      if (!clients.length) {
+        wrap.innerHTML = '<div class="empty-state">No clients yet. Add one above.</div>';
+        return;
+      }
+      var rows = clients.map(function (c) {
+        return '<tr>' +
+          '<td>' + escapeHtml(c.name) + '</td>' +
+          '<td>' + escapeHtml(c.contactPerson) + '</td>' +
+          '<td>' + escapeHtml(c.phone) + '</td>' +
+          '<td>' + escapeHtml(c.email) + '</td>' +
+          '<td><span class="badge ' + (c.active ? 'ok' : 'neutral') + '">' + (c.active ? 'Active' : 'Inactive') + '</span></td>' +
+          '<td>' +
+            '<button class="btn sm ghost" data-edit="' + escapeHtml(c.id) + '">Edit</button> ' +
+            (c.active
+              ? '<button class="btn sm danger" data-deactivate="' + escapeHtml(c.id) + '">Deactivate</button>'
+              : '<button class="btn sm" data-reactivate="' + escapeHtml(c.id) + '">Reactivate</button>') +
+          '</td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+
+      wrap.querySelectorAll('[data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var client = clients.filter(function (c) { return c.id === btn.getAttribute('data-edit'); })[0];
+          if (client) startEditClient(client);
+        });
+      });
+      wrap.querySelectorAll('[data-deactivate]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('Deactivate this client? Past trips are kept.')) return;
+          setClientActive_(btn.getAttribute('data-deactivate'), 'deactivateClient');
+        });
+      });
+      wrap.querySelectorAll('[data-reactivate]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setClientActive_(btn.getAttribute('data-reactivate'), 'reactivateClient');
+        });
+      });
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getClients(true);
+  }
+
+  function setClientActive_(clientId, fnName) {
+    google.script.run.withSuccessHandler(function () {
+      loadClients();
+      loadClientsForTripForm();
+    }).withFailureHandler(function (err) {
+      alert(err.message || String(err));
+    })[fnName](clientId);
+  }
+
+  function startEditClient(client) {
+    STATE.editingClientId = client.id;
+    $('client-form-title').textContent = 'Edit client';
+    $('client-id').value = client.id;
+    $('client-name').value = client.name;
+    $('client-contact').value = client.contactPerson;
+    $('client-phone').value = client.phone;
+    $('client-email').value = client.email;
+    $('client-address').value = client.address;
+    $('client-submit').textContent = 'Save changes';
+    $('client-cancel-edit').hidden = false;
+    $('client-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function resetClientForm() {
+    STATE.editingClientId = null;
+    $('client-form-title').textContent = 'Add client';
+    $('client-form').reset();
+    $('client-id').value = '';
+    $('client-submit').textContent = 'Add client';
+    $('client-cancel-edit').hidden = true;
+  }
+
+  $('client-cancel-edit').addEventListener('click', resetClientForm);
+
+  $('client-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('client-submit');
+    var msg = $('client-msg');
+    clearMsg(msg);
+    btn.disabled = true;
+
+    var clientData = {
+      name: $('client-name').value,
+      contactPerson: $('client-contact').value,
+      phone: $('client-phone').value,
+      email: $('client-email').value,
+      address: $('client-address').value
+    };
+
+    var onDone = function () {
+      btn.disabled = false;
+      showMsg(msg, STATE.editingClientId ? 'Client updated.' : 'Client added.', false);
+      resetClientForm();
+      loadClients();
+      loadClientsForTripForm();
+    };
+    var onFail = function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    };
+
+    if (STATE.editingClientId) {
+      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail)
+        .updateClient(STATE.editingClientId, clientData);
+    } else {
+      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail)
+        .addClient(clientData);
     }
-  }
-
-  /* ---------- Shared helpers ---------- */
-
-  function formatCurrency(n, symbol) {
-    return (symbol || '$') + Number(n).toFixed(2);
-  }
-
-  function showError(elId, message) {
-    var el = document.getElementById(elId);
-    el.textContent = message;
-    el.hidden = false;
-  }
-
-  function clearError(elId) {
-    var el = document.getElementById(elId);
-    el.hidden = true;
-    el.textContent = '';
-  }
-
-  function call(name) {
-    var args = Array.prototype.slice.call(arguments, 1);
-    return new Promise(function (resolve, reject) {
-      var runner = google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler(function (err) { reject(err.message || String(err)); });
-      runner[name].apply(runner, args);
-    });
-  }
+  });
 
   /* ---------- New Trip ---------- */
 
-  function loadClientDropdown() {
-    return call('getClients').then(function (clients) {
-      state.clients = clients;
-      var select = document.getElementById('nt-client');
-      select.innerHTML = '<option value="" disabled selected>Select a client&hellip;</option>';
-      clients.forEach(function (c) {
-        var opt = document.createElement('option');
-        opt.value = c.clientId;
-        opt.textContent = c.name;
-        select.appendChild(opt);
-      });
-    });
+  function prefillTripFeesFromSettings() {
+    if (!STATE.settings) return;
+    $('trip-toll').value = STATE.settings.defaultTollFee;
+    $('trip-zrp').value = STATE.settings.defaultZrpFee;
+    $('trip-vid').value = STATE.settings.defaultVidFee;
   }
 
-  function loadFeeDefaults() {
-    return call('getSettings').then(function (settings) {
-      document.getElementById('nt-toll').placeholder = 'default: ' + settings.DefaultTollFee;
-      document.getElementById('nt-zrp').placeholder = 'default: ' + settings.DefaultZrpFee;
-      document.getElementById('nt-vid').placeholder = 'default: ' + settings.DefaultVidFee;
-    });
+  function updateTripPreview() {
+    if (!STATE.settings) return;
+    var distance = Number($('trip-distance').value) || 0;
+    var toll = Number($('trip-toll').value) || 0;
+    var zrp = Number($('trip-zrp').value) || 0;
+    var vid = Number($('trip-vid').value) || 0;
+    var other = Number($('trip-other-amount').value) || 0;
+
+    var roundTrip = distance * 2;
+    var fuelRate = STATE.settings.fuelPricePerLitre * STATE.settings.fuelConsumptionLPerKm;
+    var fuelCost = roundTrip * fuelRate;
+    var tripExpenses = toll + zrp + vid + other;
+    var subtotal = fuelCost + tripExpenses;
+    var marginPercent = STATE.settings.companyMarginPercent;
+    var marginAmount = subtotal * marginPercent / 100;
+    var total = subtotal + marginAmount;
+
+    $('cs-distance').textContent = roundTrip.toFixed(2) + ' km';
+    $('cs-fuel-rate').textContent = money(fuelRate) + ' / km';
+    $('cs-fuel').textContent = money(fuelCost);
+    $('cs-expenses').textContent = money(tripExpenses);
+    $('cs-subtotal').textContent = money(subtotal);
+    $('cs-margin-label').textContent = 'Margin (' + marginPercent + '%)';
+    $('cs-margin').textContent = money(marginAmount);
+    $('cs-total').textContent = money(total);
   }
 
-  function readTripForm() {
-    return {
-      clientId: document.getElementById('nt-client').value,
-      destination: document.getElementById('nt-destination').value,
-      oneWayDistanceKm: document.getElementById('nt-distance').value,
-      tollFee: document.getElementById('nt-toll').value,
-      zrpFee: document.getElementById('nt-zrp').value,
-      vidFee: document.getElementById('nt-vid').value,
-      otherFeeLabel: document.getElementById('nt-other-label').value,
-      otherFeeAmount: document.getElementById('nt-other-amount').value,
-      notes: document.getElementById('nt-notes').value
-    };
-  }
-
-  function renderTripBreakdown(cost) {
-    document.getElementById('nt-b-distance').textContent = cost.roundTripDistanceKm.toFixed(1) + ' km';
-    document.getElementById('nt-b-fuel').textContent = formatCurrency(cost.fuelCost, cost.currencySymbol);
-    document.getElementById('nt-b-toll').textContent = formatCurrency(cost.tollFee, cost.currencySymbol);
-    document.getElementById('nt-b-zrp').textContent = formatCurrency(cost.zrpFee, cost.currencySymbol);
-    document.getElementById('nt-b-vid').textContent = formatCurrency(cost.vidFee, cost.currencySymbol);
-
-    var otherRow = document.getElementById('nt-b-other-row');
-    var otherCell = document.getElementById('nt-b-other');
-    if (cost.otherFeeLabel) {
-      otherRow.textContent = cost.otherFeeLabel;
-      otherRow.hidden = false;
-      otherCell.textContent = formatCurrency(cost.otherFeeAmount, cost.currencySymbol);
-      otherCell.hidden = false;
-    } else {
-      otherRow.hidden = true;
-      otherCell.hidden = true;
-    }
-
-    document.getElementById('nt-b-total').textContent = formatCurrency(cost.totalCost, cost.currencySymbol);
-    document.getElementById('nt-breakdown').hidden = false;
-  }
-
-  document.getElementById('nt-preview-btn').addEventListener('click', function () {
-    clearError('nt-error');
-    document.getElementById('nt-saved-banner').hidden = true;
-    call('previewCost', readTripForm())
-      .then(renderTripBreakdown)
-      .catch(function (msg) { showError('nt-error', msg); });
+  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount'].forEach(function (id) {
+    $(id).addEventListener('input', updateTripPreview);
   });
 
-  document.getElementById('trip-form').addEventListener('submit', function (e) {
+  $('trip-form').addEventListener('submit', function (e) {
     e.preventDefault();
-    clearError('nt-error');
-    var saveBtn = document.getElementById('nt-save-btn');
-    saveBtn.disabled = true;
-    call('saveTrip', readTripForm())
-      .then(function (cost) {
-        renderTripBreakdown(cost);
-        var banner = document.getElementById('nt-saved-banner');
-        banner.textContent = 'Trip saved for ' + cost.clientName + ' (ID: ' + cost.tripId + ')';
-        banner.hidden = false;
-        state.loadedScreens['trip-history'] = false;
-      })
-      .catch(function (msg) { showError('nt-error', msg); })
-      .finally(function () { saveBtn.disabled = false; });
+    var btn = $('trip-submit');
+    var msg = $('trip-msg');
+    clearMsg(msg);
+
+    if (!$('trip-client').value) {
+      showMsg(msg, 'Add a client before quoting a trip.', true);
+      return;
+    }
+
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(function (result) {
+      btn.disabled = false;
+      showMsg(msg, 'Trip saved - quote total ' + money(result.trip.totalCost) + '.', false);
+      $('trip-form').reset();
+      prefillTripFeesFromSettings();
+      updateTripPreview();
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    }).saveTrip({
+      clientId: $('trip-client').value,
+      destination: $('trip-destination').value,
+      oneWayDistanceKm: Number($('trip-distance').value),
+      tollFee: Number($('trip-toll').value) || 0,
+      zrpFee: Number($('trip-zrp').value) || 0,
+      vidFee: Number($('trip-vid').value) || 0,
+      otherFeesDescription: $('trip-other-desc').value,
+      otherFeesAmount: Number($('trip-other-amount').value) || 0,
+      notes: $('trip-notes').value
+    });
   });
 
   /* ---------- Trip History ---------- */
 
   function loadTripHistory() {
-    return call('getTripHistory').then(function (trips) {
-      var table = document.getElementById('th-table');
-      var tbody = document.getElementById('th-tbody');
-      var empty = document.getElementById('th-empty');
-      tbody.innerHTML = '';
-
+    var wrap = $('history-table-wrap');
+    var sub = $('history-sub');
+    google.script.run.withSuccessHandler(function (trips) {
+      sub.textContent = trips.length + ' trip' + (trips.length === 1 ? '' : 's') + ' quoted.';
       if (!trips.length) {
-        table.hidden = true;
-        empty.hidden = false;
+        wrap.innerHTML = '<div class="empty-state">No trips quoted yet.</div>';
         return;
       }
-      empty.hidden = true;
-      table.hidden = false;
-
-      trips.forEach(function (t) {
-        var tr = document.createElement('tr');
-        var date = t.timestamp ? new Date(t.timestamp).toLocaleDateString() : '';
-        tr.innerHTML =
-          '<td>' + escapeHtml(date) + '</td>' +
+      var rows = trips.map(function (t) {
+        return '<tr>' +
+          '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
           '<td>' + escapeHtml(t.clientName) + '</td>' +
           '<td>' + escapeHtml(t.destination) + '</td>' +
-          '<td class="num">' + Number(t.oneWayDistanceKm).toFixed(1) + '</td>' +
-          '<td class="num">' + escapeHtml(formatCurrency(t.totalCost, t.currencySymbol)) + '</td>';
-        tbody.appendChild(tr);
-      });
-    });
+          '<td>' + t.roundTripDistanceKm.toFixed(2) + ' km</td>' +
+          '<td>' + money(t.fuelCost) + '</td>' +
+          '<td>' + money(t.tripExpenses) + '</td>' +
+          '<td>' + money(t.marginAmount) + ' (' + t.marginPercent + '%)</td>' +
+          '<td><strong>' + money(t.totalCost) + '</strong></td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Round trip</th><th>Fuel</th><th>Expenses</th><th>Margin</th><th>Quote</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getTrips({});
   }
 
-  function escapeHtml(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-
-  /* ---------- Clients ---------- */
-
-  function loadClients() {
-    return call('getAllClients').then(renderClientsTable);
-  }
-
-  function renderClientsTable(clients) {
-    var table = document.getElementById('cl-table');
-    var tbody = document.getElementById('cl-tbody');
-    var empty = document.getElementById('cl-empty');
-    tbody.innerHTML = '';
-
-    if (!clients.length) {
-      table.hidden = true;
-      empty.hidden = false;
-      return;
-    }
-    empty.hidden = true;
-    table.hidden = false;
-
-    clients.forEach(function (c) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td>' + escapeHtml(c.name) + '</td>' +
-        '<td>' + escapeHtml(c.contactPerson) + '</td>' +
-        '<td>' + escapeHtml(c.phone) + '</td>' +
-        '<td>' + escapeHtml(c.email) + '</td>' +
-        '<td><span class="' + (c.active ? 'status-active">Active' : 'status-inactive">Inactive') + '</span></td>' +
-        '<td><button type="button" class="link-btn" data-edit="' + escapeHtml(c.clientId) + '">Edit</button></td>';
-      tbody.appendChild(tr);
-    });
-
-    tbody.querySelectorAll('[data-edit]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var client = clients.filter(function (c) { return c.clientId === btn.getAttribute('data-edit'); })[0];
-        openClientForm(client);
-      });
-    });
-  }
-
-  function openClientForm(client) {
-    var form = document.getElementById('cl-form');
-    clearError('cl-error');
-    form.hidden = false;
-    document.getElementById('cl-add-btn').hidden = true;
-
-    if (client) {
-      state.editingClientId = client.clientId;
-      document.getElementById('cl-form-title').textContent = 'Edit Client';
-      document.getElementById('cl-client-id').value = client.clientId;
-      document.getElementById('cl-name').value = client.name;
-      document.getElementById('cl-contact').value = client.contactPerson;
-      document.getElementById('cl-phone').value = client.phone;
-      document.getElementById('cl-email').value = client.email;
-      document.getElementById('cl-address').value = client.address;
-      document.getElementById('cl-active').checked = client.active;
-    } else {
-      state.editingClientId = null;
-      document.getElementById('cl-form-title').textContent = 'Add Client';
-      form.reset();
-      document.getElementById('cl-active').checked = true;
-    }
-  }
-
-  function closeClientForm() {
-    document.getElementById('cl-form').hidden = true;
-    document.getElementById('cl-add-btn').hidden = false;
-    state.editingClientId = null;
-  }
-
-  document.getElementById('cl-add-btn').addEventListener('click', function () { openClientForm(null); });
-  document.getElementById('cl-cancel-btn').addEventListener('click', closeClientForm);
-
-  document.getElementById('cl-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    clearError('cl-error');
-    var saveBtn = document.getElementById('cl-save-btn');
-    saveBtn.disabled = true;
-
-    var payload = {
-      clientId: state.editingClientId,
-      name: document.getElementById('cl-name').value,
-      contactPerson: document.getElementById('cl-contact').value,
-      phone: document.getElementById('cl-phone').value,
-      email: document.getElementById('cl-email').value,
-      address: document.getElementById('cl-address').value,
-      active: document.getElementById('cl-active').checked
-    };
-
-    var request = state.editingClientId ? call('updateClient', payload) : call('createClient', payload);
-    request
-      .then(function () {
-        closeClientForm();
-        return loadClients();
-      })
-      .then(function () { return loadClientDropdown(); })
-      .catch(function (msg) { showError('cl-error', msg); })
-      .finally(function () { saveBtn.disabled = false; });
-  });
-
-  /* ---------- Settings ---------- */
-
-  function loadSettingsScreen() {
-    return call('getSettings').then(function (settings) {
-      document.getElementById('st-fuel-rate').value = settings.FuelRatePerKm;
-      document.getElementById('st-currency').value = settings.CurrencySymbol;
-      document.getElementById('st-toll').value = settings.DefaultTollFee;
-      document.getElementById('st-zrp').value = settings.DefaultZrpFee;
-      document.getElementById('st-vid').value = settings.DefaultVidFee;
-    });
-  }
-
-  document.getElementById('settings-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    clearError('st-error');
-    document.getElementById('st-saved-banner').hidden = true;
-    var saveBtn = document.getElementById('st-save-btn');
-    saveBtn.disabled = true;
-
-    var payload = {
-      FuelRatePerKm: document.getElementById('st-fuel-rate').value,
-      CurrencySymbol: document.getElementById('st-currency').value,
-      DefaultTollFee: document.getElementById('st-toll').value,
-      DefaultZrpFee: document.getElementById('st-zrp').value,
-      DefaultVidFee: document.getElementById('st-vid').value
-    };
-
-    call('updateSettings', payload)
-      .then(function () {
-        document.getElementById('st-saved-banner').hidden = false;
-        return loadFeeDefaults();
-      })
-      .catch(function (msg) { showError('st-error', msg); })
-      .finally(function () { saveBtn.disabled = false; });
-  });
-
-  /* ---------- Init ---------- */
-
-  loadClientDropdown();
-  loadFeeDefaults();
+  loadInitialData();
 </script>

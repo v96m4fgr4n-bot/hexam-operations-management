@@ -1,30 +1,45 @@
 # hexam-operations-management
 
-Hexam Bricks operations management — a Google Apps Script web app, bound to
-a Google Sheet, for costing delivery trips. Standalone 4-screen app (New
-Trip, Trip History, Clients, Settings) with its own URL, restricted to the
-Hexam Bricks Google Workspace domain.
+Hexam Bricks operations management — a standalone Google Apps Script web
+app for quoting delivery trips. Not bound to a spreadsheet as a container;
+it resolves its backing Google Sheet by ID (see `Utils.gs`).
 
-This is a deliberately narrow MVP: trip costing plus the minimum supporting
-structure (clients, settings, history) needed to make it usable day-to-day.
-Fleet/driver management, invoicing, dispatch, automated distance lookup,
-and reporting/analytics are all out of scope for this build.
+This is a deliberately narrow MVP: trip quoting plus the minimum
+supporting structure (clients, settings, history) needed to make it usable
+day-to-day. Fleet/driver management, invoicing, dispatch, and reporting/
+analytics are out of scope for this build. Distance is currently entered
+manually; Google Maps-based distance lookup is planned but not yet wired
+in (needs a Maps Platform API key with billing enabled, plus a fixed
+origin point to measure from).
 
-## Cost formula
+**Note:** this repo also contains an entirely separate, unrelated system —
+"Hexam Express Trip Tracker" — which handles live driver/delivery
+execution (GPS + odometer-verified deliveries, payment settlement). That
+system is not part of this project; it has its own Apps Script project and
+spreadsheet.
+
+## Quote formula
+
+The app produces a client-facing quote, not just a raw cost total — fuel
+cost is built up from price per litre and truck consumption (not a flat
+rate), and a company margin is applied on top:
 
 ```
 round-trip distance (km) = one-way distance (km) x 2
-fuel cost                = round-trip distance x FuelRatePerKm
-total cost                = fuel cost + toll fee + ZRP fee + VID fee (+ optional other fee)
+fuel rate per km          = fuel price per litre x fuel consumption (litres/km)
+fuel cost                 = round-trip distance x fuel rate per km
+trip expenses              = toll fee + ZRP fee + VID fee (+ optional other fee)
+subtotal                  = fuel cost + trip expenses
+margin amount              = subtotal x (company margin % / 100)
+quote total                = subtotal + margin amount
 ```
 
-Toll/ZRP/VID fees default to values in the **Settings** sheet but can be
-overridden per trip. Every fee component is rounded to cents individually
-(summed in integer cents), so the line items on screen always add up
-exactly to the displayed total. The full cost is always recomputed
-server-side from the raw inputs (client, distance, fee overrides) at save
-time — a live preview updates as you type, but that preview is never
-trusted as the value that gets written to the record.
+Toll/ZRP/VID fees default to values in **Settings** but can be overridden
+per trip. Every amount is rounded to cents at each stage. The full quote
+is always recomputed server-side from the raw inputs (client, distance,
+fee overrides) at save time, reading fuel price/consumption/margin fresh
+from Settings — a live preview updates as you type client-side, but that
+preview is never trusted as the value that gets written to the record.
 
 ## Sheets
 
@@ -33,78 +48,78 @@ Settings screen):
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `FuelRatePerKm` | 0.5 | Fuel cost per km, applied to round-trip distance |
-| `CurrencySymbol` | `$` | Symbol shown next to costs (display only) |
-| `DefaultTollFee` | 0 | Default toll fee, overridable per trip |
-| `DefaultZrpFee` | 0 | Default ZRP fee, overridable per trip |
-| `DefaultVidFee` | 0 | Default VID fee, overridable per trip |
+| `FUEL_PRICE_PER_LITRE` | 1.5 | Cost of fuel per litre |
+| `FUEL_CONSUMPTION_L_PER_KM` | 0.4 | Truck consumption, litres per km (round-trip average) |
+| `DEFAULT_TOLL_FEE` | 0 | Default toll fee, overridable per trip |
+| `DEFAULT_ZRP_FEE` | 0 | Default ZRP fee, overridable per trip |
+| `DEFAULT_VID_FEE` | 0 | Default VID fee, overridable per trip |
+| `COMPANY_MARGIN_PERCENT` | 15 | Margin applied to (fuel cost + trip expenses) to produce the quote |
+| `CURRENCY_SYMBOL` | `$` | Symbol shown next to amounts (display only) |
 
-**Clients**: Client ID, Name, Contact Person, Phone, Email, Address,
-Active. Clients are soft-deleted (Active flag) rather than removed, since
-historical trips reference them by ID and must keep working even if a
-client goes inactive.
+**Clients**: ClientId, ClientName, ContactPerson, Phone, Email, Address,
+Active, CreatedAt. Clients are soft-deleted (Active flag, toggleable from
+the Clients screen) rather than removed, since historical trips reference
+them by ID and must keep working even if a client goes inactive. Trips
+can only be quoted for an active client.
 
-**Trips** (append-only log written by the web app): Trip ID, Timestamp,
-Client ID, Client Name, Destination, One-Way Distance (km), Round-Trip
-Distance (km), Fuel Rate/km, Fuel Cost, Toll Fee, ZRP Fee, VID Fee, Other
-Fee Label, Other Fee Amount, Total Cost, Notes.
+**Trips** (append-only log written by the web app): TripId, TripDate,
+ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,
+FuelPricePerLitre, FuelConsumptionLPerKm, FuelRatePerKm, FuelCost,
+TollFee, ZrpFee, VidFee, OtherFeesDescription, OtherFeesAmount,
+TripExpenses, Subtotal, MarginPercent, MarginAmount, TotalCost, Notes,
+CreatedAt.
 
-All three sheets are created automatically (with Settings defaults) the
-first time the web app is opened — no manual setup step required. A
-**Hexam Ops > Initialize sheets** spreadsheet menu item runs the same
-idempotent setup manually if needed.
+All three sheets, and any Settings keys not yet present, are created/added
+automatically the first time the web app is opened (`initializeSpreadsheet`,
+called from `doGet()`). It's additive and idempotent — it never overwrites
+a value someone has already edited, and can also be run manually from the
+Apps Script editor.
 
 ## Project layout
 
 ```
 src/
-  appsscript.json   Apps Script manifest
-  Code.gs            Server-side logic (doGet, sheet setup, cost calc,
-                      clients, settings, trip history)
-  Index.html         Sidebar+topbar shell, 4 screens
-  Stylesheet.html    Styles (included into Index.html)
-  JavaScript.html    Client-side logic: nav, forms, API calls
+  appsscript.json      Apps Script manifest (standalone, DOMAIN-restricted web app)
+  Code.gs               doGet/include
+  Utils.gs               Spreadsheet resolution, validation, rounding, currency formatting
+  Setup.gs                initializeSpreadsheet(): sheet + Settings bootstrap, migration-safe
+  SettingsService.gs      getSettings / updateSettings
+  ClientService.gs        getClients / getClient / addClient / updateClient /
+                          deactivateClient / reactivateClient
+  TripService.gs          computeTripQuote_ / getTripQuote / saveTrip / getTrips
+  Index.html               Sidebar+topbar shell (mobile-collapsible)
+  CSS.html                 Hexham Bricks-branded styles
+  JavaScript.html          Client-side logic: nav, forms, live quote preview, API calls
+  NewTripView.html         New Trip screen
+  TripHistoryView.html     Trip History screen
+  ClientsView.html          Clients screen (add/edit/deactivate/reactivate)
+  SettingsView.html        Settings screen
 ```
 
 ## Deploy
 
-### Option A — clasp (recommended for iterating from this repo)
-
 1. `npm install -g @google/clasp` and `clasp login`.
-2. Create a new Google Sheet, then **Extensions > Apps Script** to get its
-   container-bound script, and copy the script ID from **Project Settings**
-   (or run `clasp create --type sheets --title "Hexam Ops" --parentId <existing-sheet-id>`
-   — note `--parentId` does not attach to an existing spreadsheet; it
-   always creates a new one, so the simplest path is letting `clasp create`
-   make the Sheet for you).
-3. Copy `.clasp.json.example` to `.clasp.json` and paste in the script ID
-   (this file is gitignored — it's local machine config, not project code).
-4. `clasp push` to upload `src/` to the script.
-5. `clasp deploy --description "..."` (or **Deploy > New deployment > Web
-   app** in the Apps Script editor).
-   - Execute as: **User deploying**
-   - Who has access: choose based on your org (e.g. "Anyone within
-     [your domain]" for an internal tool). The manifest defaults to
-     `DOMAIN` access — change it in the deploy dialog if that doesn't fit.
-6. Open the deployed web app URL — the `Settings`/`Clients`/`Trips` sheets
-   are created automatically on first load.
+2. Copy `.clasp.json.example` to `.clasp.json` and paste in the target
+   script ID (this file is gitignored — it's local machine config, not
+   project code).
+3. `clasp push` to upload `src/` to the script.
+4. `clasp deploy -i <deploymentId>` to ship to the existing stable
+   deployment URL (omit `-i` to create a new deployment/URL instead).
+5. Open the deployed web app URL — sheets and Settings are created/migrated
+   automatically on first load.
 
-To ship a code change to an existing deployment (keeping its URL stable),
-redeploy to the same deployment ID: `clasp deploy -i <deploymentId>`.
-
-### Option B — copy/paste into the Apps Script editor
-
-1. Create a new Google Sheet.
-2. **Extensions > Apps Script**.
-3. Delete the default `Code.gs` content and create files matching those in
-   `src/` (`Code.gs`, `Index.html`, `Stylesheet.html`, `JavaScript.html`),
-   pasting in each file's contents. Update `appsscript.json` via
-   **Project Settings > Show "appsscript.json"**.
-4. Follow steps 5–6 from Option A.
+Access is restricted to the `DOMAIN` (Google Workspace) the script's owner
+belongs to. If a signed-in user gets a generic "unable to open" error
+instead of a normal permission prompt, it usually means their Google
+account isn't recognized as a member of that Workspace domain, not that
+the app is broken.
 
 ## Explicitly out of scope
 
 Fleet/vehicle management, driver management, brick inventory, invoicing,
-dispatch/scheduling, automated distance calculation (Maps API), reporting/
-analytics, multi-currency conversion, and user accounts/roles beyond
-Workspace-domain access. None of these were requested for this build.
+dispatch/scheduling, reporting/analytics, multi-currency conversion, and
+user accounts/roles beyond Workspace-domain access. Automated distance
+calculation via Google Maps is planned (needs a Maps Platform API key with
+billing enabled, and a fixed origin address) but not yet implemented —
+`oneWayDistanceKm` is a manual input for now. None of the out-of-scope
+items were requested for this build.
