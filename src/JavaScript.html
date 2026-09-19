@@ -1,91 +1,332 @@
 <script>
-  function readForm() {
-    return {
-      clientName: document.getElementById('clientName').value,
-      oneWayDistanceKm: document.getElementById('oneWayDistanceKm').value,
-      tollFee: document.getElementById('tollFee').value,
-      zrpFee: document.getElementById('zrpFee').value,
-      vidFee: document.getElementById('vidFee').value,
-      otherFeeLabel: document.getElementById('otherFeeLabel').value,
-      otherFeeAmount: document.getElementById('otherFeeAmount').value
-    };
+  var state = {
+    clients: [],       // active clients, for New Trip dropdown
+    settingsLoaded: false,
+    editingClientId: null,
+    loadedScreens: {}
+  };
+
+  /* ---------- Navigation ---------- */
+
+  var SCREEN_TITLES = {
+    'new-trip': 'New Trip',
+    'trip-history': 'Trip History',
+    'clients': 'Clients',
+    'settings': 'Settings'
+  };
+
+  document.getElementById('nav').addEventListener('click', function (e) {
+    var btn = e.target.closest('.nav-link');
+    if (!btn) return;
+    showScreen(btn.getAttribute('data-screen'));
+  });
+
+  function showScreen(name) {
+    document.querySelectorAll('.nav-link').forEach(function (el) {
+      el.classList.toggle('active', el.getAttribute('data-screen') === name);
+    });
+    document.querySelectorAll('.screen').forEach(function (el) {
+      el.classList.toggle('active', el.id === 'screen-' + name);
+    });
+    document.getElementById('screen-title').textContent = SCREEN_TITLES[name];
+
+    if (!state.loadedScreens[name]) {
+      state.loadedScreens[name] = true;
+      if (name === 'trip-history') loadTripHistory();
+      if (name === 'clients') loadClients();
+      if (name === 'settings') loadSettingsScreen();
+    }
   }
 
-  function formatCurrency(n) {
-    return '$' + Number(n).toFixed(2);
+  /* ---------- Shared helpers ---------- */
+
+  function formatCurrency(n, symbol) {
+    return (symbol || '$') + Number(n).toFixed(2);
   }
 
-  function showError(message) {
-    var el = document.getElementById('error');
+  function showError(elId, message) {
+    var el = document.getElementById(elId);
     el.textContent = message;
     el.hidden = false;
   }
 
-  function clearError() {
-    var el = document.getElementById('error');
+  function clearError(elId) {
+    var el = document.getElementById(elId);
     el.hidden = true;
     el.textContent = '';
   }
 
-  function renderBreakdown(cost) {
-    document.getElementById('b-distance').textContent = cost.roundTripDistanceKm.toFixed(1) + ' km';
-    document.getElementById('b-fuel').textContent = formatCurrency(cost.fuelCost);
-    document.getElementById('b-toll').textContent = formatCurrency(cost.tollFee);
-    document.getElementById('b-zrp').textContent = formatCurrency(cost.zrpFee);
-    document.getElementById('b-vid').textContent = formatCurrency(cost.vidFee);
+  function call(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) { reject(err.message || String(err)); });
+      runner[name].apply(runner, args);
+    });
+  }
 
-    var otherRow = document.getElementById('b-other-row');
-    var otherCell = document.getElementById('b-other');
+  /* ---------- New Trip ---------- */
+
+  function loadClientDropdown() {
+    return call('getClients').then(function (clients) {
+      state.clients = clients;
+      var select = document.getElementById('nt-client');
+      select.innerHTML = '<option value="" disabled selected>Select a client&hellip;</option>';
+      clients.forEach(function (c) {
+        var opt = document.createElement('option');
+        opt.value = c.clientId;
+        opt.textContent = c.name;
+        select.appendChild(opt);
+      });
+    });
+  }
+
+  function loadFeeDefaults() {
+    return call('getSettings').then(function (settings) {
+      document.getElementById('nt-toll').placeholder = 'default: ' + settings.DefaultTollFee;
+      document.getElementById('nt-zrp').placeholder = 'default: ' + settings.DefaultZrpFee;
+      document.getElementById('nt-vid').placeholder = 'default: ' + settings.DefaultVidFee;
+    });
+  }
+
+  function readTripForm() {
+    return {
+      clientId: document.getElementById('nt-client').value,
+      destination: document.getElementById('nt-destination').value,
+      oneWayDistanceKm: document.getElementById('nt-distance').value,
+      tollFee: document.getElementById('nt-toll').value,
+      zrpFee: document.getElementById('nt-zrp').value,
+      vidFee: document.getElementById('nt-vid').value,
+      otherFeeLabel: document.getElementById('nt-other-label').value,
+      otherFeeAmount: document.getElementById('nt-other-amount').value,
+      notes: document.getElementById('nt-notes').value
+    };
+  }
+
+  function renderTripBreakdown(cost) {
+    document.getElementById('nt-b-distance').textContent = cost.roundTripDistanceKm.toFixed(1) + ' km';
+    document.getElementById('nt-b-fuel').textContent = formatCurrency(cost.fuelCost, cost.currencySymbol);
+    document.getElementById('nt-b-toll').textContent = formatCurrency(cost.tollFee, cost.currencySymbol);
+    document.getElementById('nt-b-zrp').textContent = formatCurrency(cost.zrpFee, cost.currencySymbol);
+    document.getElementById('nt-b-vid').textContent = formatCurrency(cost.vidFee, cost.currencySymbol);
+
+    var otherRow = document.getElementById('nt-b-other-row');
+    var otherCell = document.getElementById('nt-b-other');
     if (cost.otherFeeLabel) {
       otherRow.textContent = cost.otherFeeLabel;
       otherRow.hidden = false;
-      otherCell.textContent = formatCurrency(cost.otherFeeAmount);
+      otherCell.textContent = formatCurrency(cost.otherFeeAmount, cost.currencySymbol);
       otherCell.hidden = false;
     } else {
       otherRow.hidden = true;
       otherCell.hidden = true;
     }
 
-    document.getElementById('b-total').textContent = formatCurrency(cost.totalCost);
-    document.getElementById('breakdown').hidden = false;
+    document.getElementById('nt-b-total').textContent = formatCurrency(cost.totalCost, cost.currencySymbol);
+    document.getElementById('nt-breakdown').hidden = false;
   }
 
-  document.getElementById('preview-btn').addEventListener('click', function () {
-    clearError();
-    document.getElementById('saved-banner').hidden = true;
-    google.script.run
-      .withSuccessHandler(renderBreakdown)
-      .withFailureHandler(function (err) { showError(err.message || String(err)); })
-      .previewCost(readForm());
+  document.getElementById('nt-preview-btn').addEventListener('click', function () {
+    clearError('nt-error');
+    document.getElementById('nt-saved-banner').hidden = true;
+    call('previewCost', readTripForm())
+      .then(renderTripBreakdown)
+      .catch(function (msg) { showError('nt-error', msg); });
   });
 
   document.getElementById('trip-form').addEventListener('submit', function (e) {
     e.preventDefault();
-    clearError();
-    var saveBtn = document.getElementById('save-btn');
+    clearError('nt-error');
+    var saveBtn = document.getElementById('nt-save-btn');
     saveBtn.disabled = true;
-    google.script.run
-      .withSuccessHandler(function (cost) {
-        saveBtn.disabled = false;
-        renderBreakdown(cost);
-        var banner = document.getElementById('saved-banner');
-        banner.textContent = 'Trip saved (ID: ' + cost.tripId + ')';
+    call('saveTrip', readTripForm())
+      .then(function (cost) {
+        renderTripBreakdown(cost);
+        var banner = document.getElementById('nt-saved-banner');
+        banner.textContent = 'Trip saved for ' + cost.clientName + ' (ID: ' + cost.tripId + ')';
         banner.hidden = false;
+        state.loadedScreens['trip-history'] = false;
       })
-      .withFailureHandler(function (err) {
-        saveBtn.disabled = false;
-        showError(err.message || String(err));
-      })
-      .saveTrip(readForm());
+      .catch(function (msg) { showError('nt-error', msg); })
+      .finally(function () { saveBtn.disabled = false; });
   });
 
-  // Prefill fee placeholders with current Settings defaults (display only —
-  // the server always recomputes from Settings, never from these hints).
-  google.script.run
-    .withSuccessHandler(function (defaults) {
-      document.getElementById('tollFee').placeholder = 'default: ' + defaults.DefaultTollFee;
-      document.getElementById('zrpFee').placeholder = 'default: ' + defaults.DefaultZrpFee;
-      document.getElementById('vidFee').placeholder = 'default: ' + defaults.DefaultVidFee;
-    })
-    .getFormDefaults();
+  /* ---------- Trip History ---------- */
+
+  function loadTripHistory() {
+    return call('getTripHistory').then(function (trips) {
+      var table = document.getElementById('th-table');
+      var tbody = document.getElementById('th-tbody');
+      var empty = document.getElementById('th-empty');
+      tbody.innerHTML = '';
+
+      if (!trips.length) {
+        table.hidden = true;
+        empty.hidden = false;
+        return;
+      }
+      empty.hidden = true;
+      table.hidden = false;
+
+      trips.forEach(function (t) {
+        var tr = document.createElement('tr');
+        var date = t.timestamp ? new Date(t.timestamp).toLocaleDateString() : '';
+        tr.innerHTML =
+          '<td>' + escapeHtml(date) + '</td>' +
+          '<td>' + escapeHtml(t.clientName) + '</td>' +
+          '<td>' + escapeHtml(t.destination) + '</td>' +
+          '<td class="num">' + Number(t.oneWayDistanceKm).toFixed(1) + '</td>' +
+          '<td class="num">' + escapeHtml(formatCurrency(t.totalCost, t.currencySymbol)) + '</td>';
+        tbody.appendChild(tr);
+      });
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ---------- Clients ---------- */
+
+  function loadClients() {
+    return call('getAllClients').then(renderClientsTable);
+  }
+
+  function renderClientsTable(clients) {
+    var table = document.getElementById('cl-table');
+    var tbody = document.getElementById('cl-tbody');
+    var empty = document.getElementById('cl-empty');
+    tbody.innerHTML = '';
+
+    if (!clients.length) {
+      table.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    table.hidden = false;
+
+    clients.forEach(function (c) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escapeHtml(c.name) + '</td>' +
+        '<td>' + escapeHtml(c.contactPerson) + '</td>' +
+        '<td>' + escapeHtml(c.phone) + '</td>' +
+        '<td>' + escapeHtml(c.email) + '</td>' +
+        '<td><span class="' + (c.active ? 'status-active">Active' : 'status-inactive">Inactive') + '</span></td>' +
+        '<td><button type="button" class="link-btn" data-edit="' + escapeHtml(c.clientId) + '">Edit</button></td>';
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('[data-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var client = clients.filter(function (c) { return c.clientId === btn.getAttribute('data-edit'); })[0];
+        openClientForm(client);
+      });
+    });
+  }
+
+  function openClientForm(client) {
+    var form = document.getElementById('cl-form');
+    clearError('cl-error');
+    form.hidden = false;
+    document.getElementById('cl-add-btn').hidden = true;
+
+    if (client) {
+      state.editingClientId = client.clientId;
+      document.getElementById('cl-form-title').textContent = 'Edit Client';
+      document.getElementById('cl-client-id').value = client.clientId;
+      document.getElementById('cl-name').value = client.name;
+      document.getElementById('cl-contact').value = client.contactPerson;
+      document.getElementById('cl-phone').value = client.phone;
+      document.getElementById('cl-email').value = client.email;
+      document.getElementById('cl-address').value = client.address;
+      document.getElementById('cl-active').checked = client.active;
+    } else {
+      state.editingClientId = null;
+      document.getElementById('cl-form-title').textContent = 'Add Client';
+      form.reset();
+      document.getElementById('cl-active').checked = true;
+    }
+  }
+
+  function closeClientForm() {
+    document.getElementById('cl-form').hidden = true;
+    document.getElementById('cl-add-btn').hidden = false;
+    state.editingClientId = null;
+  }
+
+  document.getElementById('cl-add-btn').addEventListener('click', function () { openClientForm(null); });
+  document.getElementById('cl-cancel-btn').addEventListener('click', closeClientForm);
+
+  document.getElementById('cl-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    clearError('cl-error');
+    var saveBtn = document.getElementById('cl-save-btn');
+    saveBtn.disabled = true;
+
+    var payload = {
+      clientId: state.editingClientId,
+      name: document.getElementById('cl-name').value,
+      contactPerson: document.getElementById('cl-contact').value,
+      phone: document.getElementById('cl-phone').value,
+      email: document.getElementById('cl-email').value,
+      address: document.getElementById('cl-address').value,
+      active: document.getElementById('cl-active').checked
+    };
+
+    var request = state.editingClientId ? call('updateClient', payload) : call('createClient', payload);
+    request
+      .then(function () {
+        closeClientForm();
+        return loadClients();
+      })
+      .then(function () { return loadClientDropdown(); })
+      .catch(function (msg) { showError('cl-error', msg); })
+      .finally(function () { saveBtn.disabled = false; });
+  });
+
+  /* ---------- Settings ---------- */
+
+  function loadSettingsScreen() {
+    return call('getSettings').then(function (settings) {
+      document.getElementById('st-fuel-rate').value = settings.FuelRatePerKm;
+      document.getElementById('st-currency').value = settings.CurrencySymbol;
+      document.getElementById('st-toll').value = settings.DefaultTollFee;
+      document.getElementById('st-zrp').value = settings.DefaultZrpFee;
+      document.getElementById('st-vid').value = settings.DefaultVidFee;
+    });
+  }
+
+  document.getElementById('settings-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    clearError('st-error');
+    document.getElementById('st-saved-banner').hidden = true;
+    var saveBtn = document.getElementById('st-save-btn');
+    saveBtn.disabled = true;
+
+    var payload = {
+      FuelRatePerKm: document.getElementById('st-fuel-rate').value,
+      CurrencySymbol: document.getElementById('st-currency').value,
+      DefaultTollFee: document.getElementById('st-toll').value,
+      DefaultZrpFee: document.getElementById('st-zrp').value,
+      DefaultVidFee: document.getElementById('st-vid').value
+    };
+
+    call('updateSettings', payload)
+      .then(function () {
+        document.getElementById('st-saved-banner').hidden = false;
+        return loadFeeDefaults();
+      })
+      .catch(function (msg) { showError('st-error', msg); })
+      .finally(function () { saveBtn.disabled = false; });
+  });
+
+  /* ---------- Init ---------- */
+
+  loadClientDropdown();
+  loadFeeDefaults();
 </script>
