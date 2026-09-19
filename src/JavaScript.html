@@ -168,7 +168,7 @@
   function loadDashboard() {
     google.script.run.withSuccessHandler(renderDashboard).withFailureHandler(function (err) {
       $('dash-sub').textContent = err.message || String(err);
-      ['dash-today-grid', 'dash-month-grid', 'dash-overall-grid'].forEach(function (id) {
+      ['dash-hero', 'dash-month-grid', 'dash-overall-grid'].forEach(function (id) {
         $(id).removeAttribute('aria-busy');
       });
     }).getDashboardSummary();
@@ -179,7 +179,7 @@
 
     $('dash-today-revenue').textContent = money(s.todayRevenue);
     $('dash-today-profit').textContent = money(s.todayProfit);
-    $('dash-today-profit').className = 'stat-value ' + (s.todayProfit >= 0 ? 'positive' : 'negative');
+    $('dash-today-profit').className = 'dash-hero-value ' + (s.todayProfit >= 0 ? 'positive' : 'negative');
     $('dash-today-trips').textContent = s.todayTripCount;
 
     $('dash-month-revenue').textContent = money(s.monthRevenue);
@@ -192,7 +192,7 @@
     $('dash-active-bringers').textContent = s.activeLoadBringerCount;
     $('dash-active-drivers').textContent = s.activeDriverCount;
 
-    ['dash-today-grid', 'dash-month-grid', 'dash-overall-grid'].forEach(function (id) {
+    ['dash-hero', 'dash-month-grid', 'dash-overall-grid'].forEach(function (id) {
       $(id).removeAttribute('aria-busy');
     });
 

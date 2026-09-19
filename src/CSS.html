@@ -280,9 +280,61 @@
   .badge.neutral { background: var(--ink-8); color: var(--ink-4); }
 
   .stat-card h3 { margin-bottom: 6px; }
-  .stat-value { font-size: var(--fs-2xl); font-weight: 700; color: var(--ink-0); }
+  .stat-value { font-size: var(--fs-2xl); font-weight: 700; color: var(--ink-0); font-variant-numeric: tabular-nums; }
   .stat-value.positive { color: var(--ok); }
   .stat-value.negative { color: var(--danger); }
+  .stat-caption { margin-top: 4px; font-size: var(--fs-sm); color: var(--ink-4); }
+
+  /* ---------- Dashboard hero ---------- */
+
+  .dash-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 28px;
+    padding: 22px 24px;
+  }
+
+  .dash-hero-main { min-width: 180px; }
+
+  .dash-hero-value {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.05;
+    color: var(--ink-0);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dash-hero-value.positive { color: var(--ok); }
+  .dash-hero-value.negative { color: var(--danger); }
+
+  .dash-hero-label { margin-top: 6px; font-size: var(--fs-sm); color: var(--ink-4); }
+
+  .dash-hero-side {
+    display: flex;
+    gap: 28px;
+    padding-left: 28px;
+    border-left: 1px solid var(--line);
+  }
+
+  .dash-hero-stat-value {
+    font-size: var(--fs-xl);
+    font-weight: 700;
+    color: var(--ink-1);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dash-hero-stat-label { margin-top: 2px; font-size: var(--fs-xs); color: var(--ink-4); }
+
+  @media (max-width: 560px) {
+    .dash-hero-side {
+      padding-left: 0;
+      border-left: none;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      width: 100%;
+    }
+  }
 
   .breakdown-list { margin: 0; display: grid; grid-template-columns: 1fr auto; row-gap: 8px; }
   .breakdown-list dt { color: var(--ink-2); }

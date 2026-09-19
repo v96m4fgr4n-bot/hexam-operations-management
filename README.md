@@ -20,12 +20,16 @@ spreadsheet.
 
 ## Screens
 
-- **Dashboard** (landing screen) — today/month revenue, **net** profit (color-
-  coded green/red), and trip counts, average quote value, active
-  client/bringer/driver counts, recent trips. Net profit is trip margin
+- **Dashboard** (landing screen) — leads with today's net profit as a single
+  large hero figure (color-coded green/red) alongside today's revenue and
+  trip count, then a quieter "This month" row and an "Overall" reference
+  list (avg. quote value, active client/bringer/driver counts), then
+  recent trips. Deliberately not ten identical stat cards — today's net
+  profit is the one number that matters most on open, so it's visually
+  dominant; the rest is proportionally quieter. Net profit is trip margin
   minus that period's recorded business expenses (see "Net profit per
   trip" and Trends' scope note below) — not just trip-level gross margin.
-  Money values show thousand separators; stat tiles carry `aria-busy`
+  Money values show thousand separators; stat sections carry `aria-busy`
   while loading.
 - **New Trip** — quote a trip; client and load bringer are both typed
   freehand (see below), with a live client-side cost preview. Optionally

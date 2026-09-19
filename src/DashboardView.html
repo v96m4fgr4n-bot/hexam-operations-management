@@ -5,56 +5,47 @@
   </div>
 </div>
 
-<h3>Today</h3>
-<div class="form-grid" id="dash-today-grid" aria-busy="true">
-  <div class="card stat-card">
-    <h3>Revenue</h3>
-    <div class="stat-value" id="dash-today-revenue">-</div>
+<div class="card dash-hero" id="dash-hero" aria-busy="true">
+  <div class="dash-hero-main">
+    <div class="dash-hero-value" id="dash-today-profit">-</div>
+    <div class="dash-hero-label">Today's net profit</div>
   </div>
-  <div class="card stat-card">
-    <h3>Net Profit</h3>
-    <div class="stat-value" id="dash-today-profit">-</div>
-  </div>
-  <div class="card stat-card">
-    <h3>Trips</h3>
-    <div class="stat-value" id="dash-today-trips">-</div>
+  <div class="dash-hero-side">
+    <div>
+      <div class="dash-hero-stat-value" id="dash-today-revenue">-</div>
+      <div class="dash-hero-stat-label">Revenue today</div>
+    </div>
+    <div>
+      <div class="dash-hero-stat-value" id="dash-today-trips">-</div>
+      <div class="dash-hero-stat-label">Trips today</div>
+    </div>
   </div>
 </div>
 
-<h3 style="margin-top:18px;">This Month</h3>
+<h3 style="margin-top:18px;">This month</h3>
 <div class="form-grid" id="dash-month-grid" aria-busy="true">
   <div class="card stat-card">
-    <h3>Revenue</h3>
     <div class="stat-value" id="dash-month-revenue">-</div>
+    <div class="stat-caption">Revenue</div>
   </div>
   <div class="card stat-card">
-    <h3>Net Profit</h3>
     <div class="stat-value" id="dash-month-profit">-</div>
+    <div class="stat-caption">Net profit</div>
   </div>
   <div class="card stat-card">
-    <h3>Trips</h3>
     <div class="stat-value" id="dash-month-trips">-</div>
+    <div class="stat-caption">Trips</div>
   </div>
 </div>
 
-<h3 style="margin-top:18px;">Overall</h3>
-<div class="form-grid" id="dash-overall-grid" aria-busy="true">
-  <div class="card stat-card">
-    <h3>Avg. quote value</h3>
-    <div class="stat-value" id="dash-avg-quote">-</div>
-  </div>
-  <div class="card stat-card">
-    <h3>Active clients</h3>
-    <div class="stat-value" id="dash-active-clients">-</div>
-  </div>
-  <div class="card stat-card">
-    <h3>Active load bringers</h3>
-    <div class="stat-value" id="dash-active-bringers">-</div>
-  </div>
-  <div class="card stat-card">
-    <h3>Active drivers</h3>
-    <div class="stat-value" id="dash-active-drivers">-</div>
-  </div>
+<div class="card" style="margin-top:14px;" id="dash-overall-grid" aria-busy="true">
+  <h3>Overall</h3>
+  <dl class="breakdown-list">
+    <dt>Average quote value</dt><dd id="dash-avg-quote">-</dd>
+    <dt>Active clients</dt><dd id="dash-active-clients">-</dd>
+    <dt>Active load bringers</dt><dd id="dash-active-bringers">-</dd>
+    <dt>Active drivers</dt><dd id="dash-active-drivers">-</dd>
+  </dl>
 </div>
 
 <div class="card" style="margin-top:14px;">
