@@ -28,15 +28,20 @@ spreadsheet.
 - **Clients** / **Load Bringers** — manage records created via New Trip
   (edit, deactivate/reactivate); Load Bringers also shows a running
   loads-brought/total-paid tally per person.
-- **Accounting** — income/expense roll-up and per-trip ledger, derived
-  live from Trips.
+- **Accounting** — income/expense roll-up (trip-derived + manually-recorded
+  business expenses, category breakdown) and per-trip ledger, derived live
+  from Trips + Expenses. "+ Add expense" records one-off business costs
+  (repairs, insurance, salaries, etc. — see Expenses below).
 - **Trends** — 14-day revenue/profit and trip-volume charts, top clients
   by revenue, top load bringers by loads brought.
 - **Fleet** — trucks, trailers, roadworthy/service due dates with
   expired/due-soon badges, status (Active / In Repair / Offline), and
   driver-to-truck assignment.
+- **Audit Log** — every create/update/deactivate/reactivate across
+  Clients, Load Bringers, Trips, Fleet, Expenses, and Settings, with who
+  (signed-in user email) and when.
 - **Settings** — fuel price/consumption, default trip expenses, margin,
-  load levy, currency symbol.
+  load levy, brick price per 1000, currency symbol.
 
 ## Quote formula
 
@@ -51,9 +56,13 @@ fuel cost                 = round-trip distance x fuel rate per km
 trip expenses              = toll fee + ZRP fee + VID fee (+ optional other fee)
 subtotal                  = fuel cost + trip expenses
 margin amount              = subtotal x (company margin % / 100)
+brick cost                 = (brick quantity / 1000) x Settings' brick
+                            price per 1000, IF the order type is
+                            "Transport + Bricks", else 0 - billed at its
+                            set price, margin is not re-applied to it
 load levy                  = Settings' load levy amount, IF a load bringer
                             name was typed for this trip, else 0
-total before discount      = subtotal + margin amount + load levy
+total before discount      = subtotal + margin amount + brick cost + load levy
 quote total                = total before discount − discount amount
 ```
 
@@ -85,6 +94,21 @@ out to each person.
 an "Add discount" button on the New Trip screen), validated so it can never
 exceed the pre-discount total.
 
+**Order type / bricks**: New Trip has an "Order Type" selector — "Delivery
+only" (the original behaviour) or "Transport + cost of bricks", which
+reveals a "Number of bricks" field and bills at Settings' price per 1000,
+added after margin (bricks are billed at their set sell price, not
+margined like the transport build-up).
+
+**Business expenses**: one-off costs not tied to any trip (vehicle
+repairs, insurance, salaries, licensing, etc.) are recorded on the
+Accounting screen via "+ Add expense", picked from a fixed set of
+categories relevant to a trucking/delivery business (see
+`EXPENSE_CATEGORIES` in `ExpenseService.gs`). These feed into Accounting's
+expense total and net profit, but not into Dashboard/Trends, which stay
+scoped to trip margin only — so "profit" on Accounting can differ from
+"profit" on Dashboard/Trends by the amount of recorded business expenses.
+
 ## Sheets
 
 **Settings** (key/value, editable directly in the sheet or via the
@@ -99,6 +123,7 @@ Settings screen):
 | `DEFAULT_VID_FEE` | 0 | Default VID fee, overridable per trip |
 | `COMPANY_MARGIN_PERCENT` | 15 | Margin applied to (fuel cost + trip expenses) to produce the quote |
 | `LOAD_LEVY_AMOUNT` | 10 | Paid to whoever brought the load; added to the client's total when a load bringer is named |
+| `BRICK_PRICE_PER_1000` | 100 | Price charged to the client per 1000 bricks, on a "Transport + Bricks" order |
 | `CURRENCY_SYMBOL` | `$` | Symbol shown next to amounts (display only) |
 
 **Clients**: ClientId, ClientName, ContactPerson, Phone, Email, Address,
@@ -127,11 +152,23 @@ Soft-deleted like Clients/LoadBringers. Assigning a truck already assigned
 to a different active driver is rejected rather than silently allowing two
 drivers on one truck.
 
+**Expenses**: ExpenseId, ExpenseDate, Category, Description, Amount,
+CreatedBy, CreatedAt. Manual business expenses (see "Business expenses"
+above); deleted outright (no soft-delete) since it's a ledger of one-off
+entries, not a persistent identity record like Clients/LoadBringers.
+
+**AuditLog**: LogId, Timestamp, UserEmail, Action, EntityType, EntityId,
+Summary. Written by `logAudit_()` (best-effort — a logging failure never
+blocks or fails the action it's recording) from every mutating function
+across Clients, LoadBringers, Trips, Trucks, Trailers, Drivers, Expenses,
+and Settings.
+
 **Trips** (append-only log written by the web app): TripId, TripDate,
 ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,
 FuelPricePerLitre, FuelConsumptionKmPerL, FuelRatePerKm, FuelCost,
 TollFee, ZrpFee, VidFee, OtherFeesDescription, OtherFeesAmount,
-TripExpenses, Subtotal, MarginPercent, MarginAmount, LoadBringerId,
+TripExpenses, Subtotal, MarginPercent, MarginAmount, OrderType,
+BrickQuantity, BrickPricePer1000, BrickCost, LoadBringerId,
 LoadBringerName, LoadLevyAmount, TotalBeforeDiscount, DiscountAmount,
 DiscountReason, TotalCost, Notes, CreatedAt.
 
@@ -161,6 +198,10 @@ src/
   TrendsService.gs         getTrendsData(): 14-day trend + top clients/bringers
   FleetService.gs          Trucks/Trailers/Drivers CRUD, dateStatus_() for
                           roadworthy/service due badges
+  ExpenseService.gs        Manual business expenses: getExpenseCategories /
+                          getExpenses / addExpense / deleteExpense
+  AuditLogService.gs       logAudit_() / getAuditLog(): who/what/when across
+                          every mutating function
   Index.html               Sidebar+topbar shell (mobile-collapsible)
   CSS.html                 Hexham Bricks-branded styles
   JavaScript.html          Client-side logic: nav, forms, live quote preview,
@@ -170,9 +211,11 @@ src/
   TripHistoryView.html     Trip History screen
   ClientsView.html          Clients screen (edit/deactivate/reactivate)
   LoadBringersView.html    Load Bringers screen (add/edit/deactivate/reactivate + paid tally)
-  AccountingView.html      Accounting screen (income/expense summary + ledger)
+  AccountingView.html      Accounting screen (income/expense summary,
+                          business expenses form + ledger)
   TrendsView.html          Trends screen (revenue/profit/trips charts, top clients/bringers)
   FleetView.html           Fleet screen (trucks/trailers/drivers)
+  AuditLogView.html        Audit Log screen (filterable activity list)
   SettingsView.html        Settings screen
 ```
 

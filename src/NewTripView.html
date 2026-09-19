@@ -33,6 +33,24 @@
       </div>
     </div>
 
+    <h3 style="margin-top:20px;">Order Type</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="trip-order-type">What is the client getting?</label>
+        <select id="trip-order-type">
+          <option value="Delivery Only">Delivery only</option>
+          <option value="Transport + Bricks">Transport + cost of bricks</option>
+        </select>
+      </div>
+      <div class="field" id="trip-brick-qty-field" hidden>
+        <label for="trip-brick-quantity">
+          Number of bricks
+          <span class="hint" id="trip-brick-price-hint">Priced per 1000</span>
+        </label>
+        <input id="trip-brick-quantity" type="number" min="1" step="1">
+      </div>
+    </div>
+
     <h3 style="margin-top:20px;">Trip Expenses</h3>
     <div class="form-grid">
       <div class="field">
@@ -97,6 +115,7 @@
       <div class="divider"></div>
       <div class="line subtle"><span>Subtotal</span><span id="cs-subtotal">-</span></div>
       <div class="line"><span id="cs-margin-label">Margin</span><span id="cs-margin">-</span></div>
+      <div class="line" id="cs-bricks-row" hidden><span id="cs-bricks-label">Bricks</span><span id="cs-bricks">-</span></div>
       <div class="line" id="cs-levy-row" hidden><span id="cs-levy-label">Load levy</span><span id="cs-levy">-</span></div>
       <div class="line subtle" id="cs-before-discount-row" hidden><span>Total before discount</span><span id="cs-before-discount">-</span></div>
       <div class="line" id="cs-discount-row" hidden><span>Discount</span><span id="cs-discount">-</span></div>

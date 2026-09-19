@@ -53,6 +53,7 @@ function addClient(clientData) {
     now
   ]);
 
+  logAudit_('CREATE', 'Client', id, 'Added client ' + name);
   return { success: true, client: getClient(id) };
 }
 
@@ -78,6 +79,7 @@ function updateClient(clientId, clientData) {
           sheet.getRange(rowNum, headers.indexOf(colName) + 1).setValue(clientData[field]);
         }
       });
+      logAudit_('UPDATE', 'Client', clientId, 'Updated client ' + (clientData.name || data[r][headers.indexOf('ClientName')]));
       return { success: true, client: getClient(clientId) };
     }
   }
@@ -92,10 +94,12 @@ function setClientActive_(clientId, active) {
   var headers = data[0];
   var idCol = headers.indexOf('ClientId');
   var activeCol = headers.indexOf('Active');
+  var nameCol = headers.indexOf('ClientName');
 
   for (var r = 1; r < data.length; r++) {
     if (data[r][idCol] === clientId) {
       sheet.getRange(r + 1, activeCol + 1).setValue(active);
+      logAudit_(active ? 'REACTIVATE' : 'DEACTIVATE', 'Client', clientId, (active ? 'Reactivated' : 'Deactivated') + ' client ' + data[r][nameCol]);
       return { success: true };
     }
   }

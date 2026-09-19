@@ -45,6 +45,7 @@
     if (viewName === 'accounting') loadAccounting();
     if (viewName === 'trends') loadTrends();
     if (viewName === 'fleet') loadFleet();
+    if (viewName === 'audit-log') loadAuditLog();
   }
 
   function openSidebar() {
@@ -96,6 +97,13 @@
     $('settings-vid').value = settings.defaultVidFee;
     $('settings-margin').value = settings.companyMarginPercent;
     $('settings-load-levy').value = settings.loadLevyAmount;
+    $('settings-brick-price').value = settings.brickPricePer1000;
+    updateBrickPriceHint_();
+  }
+
+  function updateBrickPriceHint_() {
+    if (!STATE.settings) return;
+    $('trip-brick-price-hint').textContent = 'Priced at ' + money(STATE.settings.brickPricePer1000) + ' per 1000';
   }
 
   function fuelRatePreview_(price, consumption) {
@@ -136,7 +144,8 @@
       defaultZrpFee: Number($('settings-zrp').value),
       defaultVidFee: Number($('settings-vid').value),
       companyMarginPercent: Number($('settings-margin').value),
-      loadLevyAmount: Number($('settings-load-levy').value)
+      loadLevyAmount: Number($('settings-load-levy').value),
+      brickPricePer1000: Number($('settings-brick-price').value)
     });
   });
 
@@ -454,6 +463,13 @@
     }
   });
 
+  $('trip-order-type').addEventListener('change', function () {
+    var showBricks = this.value === 'Transport + Bricks';
+    $('trip-brick-qty-field').hidden = !showBricks;
+    if (!showBricks) $('trip-brick-quantity').value = '';
+    updateTripPreview();
+  });
+
   $('trip-discount-toggle').addEventListener('click', function () {
     var fields = $('trip-discount-fields');
     var showing = !fields.hidden;
@@ -486,8 +502,11 @@
     var subtotal = fuelCost + tripExpenses;
     var marginPercent = STATE.settings.companyMarginPercent;
     var marginAmount = subtotal * marginPercent / 100;
+    var orderType = $('trip-order-type').value;
+    var brickQuantity = Number($('trip-brick-quantity').value) || 0;
+    var brickCost = orderType === 'Transport + Bricks' ? (brickQuantity / 1000) * STATE.settings.brickPricePer1000 : 0;
     var levyAmount = loadBringerName ? STATE.settings.loadLevyAmount : 0;
-    var totalBeforeDiscount = subtotal + marginAmount + levyAmount;
+    var totalBeforeDiscount = subtotal + marginAmount + brickCost + levyAmount;
     var total = totalBeforeDiscount - discount;
 
     $('cs-distance').textContent = roundTrip.toFixed(2) + ' km';
@@ -497,6 +516,12 @@
     $('cs-subtotal').textContent = money(subtotal);
     $('cs-margin-label').textContent = 'Margin (' + marginPercent + '%)';
     $('cs-margin').textContent = money(marginAmount);
+
+    $('cs-bricks-row').hidden = orderType !== 'Transport + Bricks';
+    if (orderType === 'Transport + Bricks') {
+      $('cs-bricks-label').textContent = 'Bricks (' + brickQuantity + ' @ ' + money(STATE.settings.brickPricePer1000) + '/1000)';
+      $('cs-bricks').textContent = money(brickCost);
+    }
 
     $('cs-levy-row').hidden = !loadBringerName;
     if (loadBringerName) {
@@ -512,7 +537,7 @@
     $('cs-total').textContent = money(total);
   }
 
-  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount', 'trip-load-bringer-name', 'trip-discount-amount'].forEach(function (id) {
+  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount', 'trip-brick-quantity', 'trip-load-bringer-name', 'trip-discount-amount'].forEach(function (id) {
     $(id).addEventListener('input', updateTripPreview);
     $(id).addEventListener('change', updateTripPreview);
   });
@@ -536,6 +561,7 @@
       btn.disabled = false;
       showMsg(msg, 'Trip saved - quote total ' + money(result.trip.totalCost) + '.', false);
       $('trip-form').reset();
+      $('trip-brick-qty-field').hidden = true;
       $('trip-discount-fields').hidden = true;
       $('trip-discount-toggle').textContent = '+ Add discount';
       $('trip-client-match-hint').textContent = 'Type a name — matches an existing client, or adds a new one';
@@ -556,6 +582,8 @@
       vidFee: Number($('trip-vid').value) || 0,
       otherFeesDescription: $('trip-other-desc').value,
       otherFeesAmount: Number($('trip-other-amount').value) || 0,
+      orderType: $('trip-order-type').value,
+      brickQuantity: Number($('trip-brick-quantity').value) || 0,
       loadBringerName: $('trip-load-bringer-name').value,
       discountAmount: discountShown ? (Number($('trip-discount-amount').value) || 0) : 0,
       discountReason: discountShown ? $('trip-discount-reason').value : '',
@@ -601,6 +629,9 @@
       $('acct-sub').textContent = err.message || String(err);
     }).getAccountingSummary();
 
+    loadExpenseCategories_();
+    loadExpenses();
+
     var wrap = $('acct-ledger-wrap');
     google.script.run.withSuccessHandler(function (trips) {
       if (!trips.length) {
@@ -608,7 +639,7 @@
         return;
       }
       var rows = trips.map(function (t) {
-        var net = t.marginAmount - t.discountAmount;
+        var net = t.marginAmount + t.brickCost - t.discountAmount;
         return '<tr>' +
           '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
           '<td>' + escapeHtml(t.clientName) + '</td>' +
@@ -640,8 +671,102 @@
     $('acct-fuel').textContent = money(summary.totalFuelExpense);
     $('acct-trip-expenses').textContent = money(summary.totalTripExpenses);
     $('acct-levies').textContent = money(summary.totalLoadLevyPaid);
+    $('acct-manual-expenses').textContent = money(summary.totalManualExpenses);
+    $('acct-bricks').textContent = summary.totalBrickRevenue > 0 ? money(summary.totalBrickRevenue) : '—';
     $('acct-discounts').textContent = summary.totalDiscountsGiven > 0 ? '−' + money(summary.totalDiscountsGiven) : '—';
+
+    var catWrap = $('acct-category-wrap');
+    if (!summary.expensesByCategory.length) {
+      catWrap.innerHTML = '<div class="empty-state">No business expenses recorded yet.</div>';
+    } else {
+      catWrap.innerHTML = '<dl class="breakdown-list">' +
+        summary.expensesByCategory.map(function (c) {
+          return '<dt>' + escapeHtml(c.category) + '</dt><dd>' + money(c.total) + '</dd>';
+        }).join('') +
+        '</dl>';
+    }
   }
+
+  /* ---------- Business Expenses ---------- */
+
+  function loadExpenseCategories_() {
+    var select = $('expense-category');
+    if (select.options.length) return; // fetch once
+    google.script.run.withSuccessHandler(function (categories) {
+      select.innerHTML = categories.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+    }).withFailureHandler(function (err) {
+      showMsg($('expense-msg'), err.message || String(err), true);
+    }).getExpenseCategories();
+  }
+
+  function loadExpenses() {
+    var wrap = $('expenses-table-wrap');
+    google.script.run.withSuccessHandler(function (expenses) {
+      if (!expenses.length) {
+        wrap.innerHTML = '<div class="empty-state">No business expenses recorded yet.</div>';
+        return;
+      }
+      var rows = expenses.map(function (e) {
+        return '<tr>' +
+          '<td>' + new Date(e.date).toLocaleDateString() + '</td>' +
+          '<td>' + escapeHtml(e.category) + '</td>' +
+          '<td>' + escapeHtml(e.description) + '</td>' +
+          '<td>' + money(e.amount) + '</td>' +
+          '<td><button class="btn sm danger" data-delete="' + escapeHtml(e.id) + '">Delete</button></td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+
+      wrap.querySelectorAll('[data-delete]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('Delete this expense?')) return;
+          google.script.run.withSuccessHandler(loadAccounting).withFailureHandler(function (err) {
+            alert(err.message || String(err));
+          }).deleteExpense(btn.getAttribute('data-delete'));
+        });
+      });
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getExpenses({});
+  }
+
+  $('expense-add-btn').addEventListener('click', function () {
+    var form = $('expense-form');
+    form.hidden = !form.hidden;
+    if (!form.hidden && !$('expense-date').value) {
+      var today = new Date();
+      $('expense-date').value = today.toISOString().slice(0, 10);
+    }
+  });
+
+  $('expense-cancel').addEventListener('click', function () {
+    $('expense-form').hidden = true;
+    $('expense-form').reset();
+    clearMsg($('expense-msg'));
+  });
+
+  $('expense-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('expense-submit');
+    var msg = $('expense-msg');
+    clearMsg(msg);
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(function () {
+      btn.disabled = false;
+      $('expense-form').reset();
+      $('expense-form').hidden = true;
+      loadAccounting();
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    }).addExpense({
+      date: $('expense-date').value,
+      category: $('expense-category').value,
+      amount: Number($('expense-amount').value),
+      description: $('expense-description').value
+    });
+  });
 
   /* ---------- Trends ---------- */
 
@@ -1070,6 +1195,33 @@
       google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail).addDriver(data);
     }
   });
+
+  /* ---------- Audit Log ---------- */
+
+  function loadAuditLog() {
+    var wrap = $('audit-table-wrap');
+    var entityType = $('audit-filter').value;
+    google.script.run.withSuccessHandler(function (entries) {
+      if (!entries.length) {
+        wrap.innerHTML = '<div class="empty-state">No activity recorded yet.</div>';
+        return;
+      }
+      var rows = entries.map(function (e) {
+        return '<tr>' +
+          '<td>' + new Date(e.timestamp).toLocaleString() + '</td>' +
+          '<td>' + escapeHtml(e.userEmail) + '</td>' +
+          '<td>' + escapeHtml(e.action) + '</td>' +
+          '<td>' + escapeHtml(e.entityType) + '</td>' +
+          '<td>' + escapeHtml(e.summary) + '</td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Type</th><th>Details</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getAuditLog({ entityType: entityType, limit: 200 });
+  }
+
+  $('audit-filter').addEventListener('change', loadAuditLog);
 
   loadInitialData();
 </script>

@@ -48,6 +48,7 @@ function addLoadBringer(data) {
 
   sheet.appendRow([id, name, data.phone || '', true, now]);
 
+  logAudit_('CREATE', 'LoadBringer', id, 'Added load bringer ' + name);
   return { success: true, loadBringer: getLoadBringer(id) };
 }
 
@@ -70,6 +71,7 @@ function updateLoadBringer(loadBringerId, data) {
       if (data.phone !== undefined) {
         sheet.getRange(rowNum, headers.indexOf('Phone') + 1).setValue(data.phone);
       }
+      logAudit_('UPDATE', 'LoadBringer', loadBringerId, 'Updated load bringer ' + (data.name || rows[r][headers.indexOf('Name')]));
       return { success: true, loadBringer: getLoadBringer(loadBringerId) };
     }
   }
@@ -84,10 +86,12 @@ function setLoadBringerActive_(loadBringerId, active) {
   var headers = rows[0];
   var idCol = headers.indexOf('LoadBringerId');
   var activeCol = headers.indexOf('Active');
+  var nameCol = headers.indexOf('Name');
 
   for (var r = 1; r < rows.length; r++) {
     if (rows[r][idCol] === loadBringerId) {
       sheet.getRange(r + 1, activeCol + 1).setValue(active);
+      logAudit_(active ? 'REACTIVATE' : 'DEACTIVATE', 'LoadBringer', loadBringerId, (active ? 'Reactivated' : 'Deactivated') + ' load bringer ' + rows[r][nameCol]);
       return { success: true };
     }
   }

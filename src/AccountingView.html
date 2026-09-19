@@ -20,14 +20,59 @@
   </div>
 </div>
 
+
 <div class="card">
   <h3>Expense breakdown</h3>
   <dl class="breakdown-list">
     <dt>Fuel</dt><dd id="acct-fuel">-</dd>
     <dt>Trip expenses (toll + ZRP + VID + other)</dt><dd id="acct-trip-expenses">-</dd>
     <dt>Load levies paid to bringers</dt><dd id="acct-levies">-</dd>
+    <dt>Business expenses (see below)</dt><dd id="acct-manual-expenses">-</dd>
+    <dt class="subtle">Brick revenue (included in income, no tracked cost of goods)</dt><dd id="acct-bricks" class="subtle">-</dd>
     <dt class="subtle">Discounts given (already reflected in income)</dt><dd id="acct-discounts" class="subtle">-</dd>
   </dl>
+</div>
+
+<div class="card">
+  <h3>By category</h3>
+  <div id="acct-category-wrap">
+    <div class="empty-state">No business expenses recorded yet.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="page-head" style="margin-bottom:0;">
+    <h3 style="margin:0;">Business Expenses</h3>
+    <button type="button" class="btn" id="expense-add-btn">+ Add expense</button>
+  </div>
+
+  <form id="expense-form" hidden style="margin-top:12px;">
+    <div class="form-grid">
+      <div class="field">
+        <label for="expense-date">Date</label>
+        <input id="expense-date" type="date" required>
+      </div>
+      <div class="field">
+        <label for="expense-category">Category</label>
+        <select id="expense-category" required></select>
+      </div>
+      <div class="field">
+        <label for="expense-amount">Amount</label>
+        <input id="expense-amount" type="number" min="0.01" step="0.01" required>
+      </div>
+      <div class="field">
+        <label for="expense-description">Description (optional)</label>
+        <input id="expense-description" type="text" placeholder="e.g. Truck ABC123 brake service">
+      </div>
+    </div>
+    <button type="submit" class="btn primary" id="expense-submit">Save expense</button>
+    <button type="button" class="btn ghost" id="expense-cancel">Cancel</button>
+    <div class="msg" id="expense-msg"></div>
+  </form>
+
+  <div class="table-wrap" id="expenses-table-wrap" style="margin-top:14px;">
+    <div class="empty-state">Loading&hellip;</div>
+  </div>
 </div>
 
 <div class="card">

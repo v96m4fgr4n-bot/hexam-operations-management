@@ -10,6 +10,7 @@ var SETTINGS_KEY_MAP = {
   defaultVidFee: 'DEFAULT_VID_FEE',
   companyMarginPercent: 'COMPANY_MARGIN_PERCENT',
   loadLevyAmount: 'LOAD_LEVY_AMOUNT',
+  brickPricePer1000: 'BRICK_PRICE_PER_1000',
   currencySymbol: 'CURRENCY_SYMBOL'
 };
 
@@ -33,6 +34,7 @@ function getSettings() {
     defaultVidFee: Number(byKey.DEFAULT_VID_FEE) || 0,
     companyMarginPercent: Number(byKey.COMPANY_MARGIN_PERCENT) || 0,
     loadLevyAmount: Number(byKey.LOAD_LEVY_AMOUNT) || 0,
+    brickPricePer1000: Number(byKey.BRICK_PRICE_PER_1000) || 0,
     currencySymbol: byKey.CURRENCY_SYMBOL || '$'
   };
 }
@@ -80,6 +82,11 @@ function updateSettings(newValues) {
       sheet.appendRow([sheetKey, value, '', now]);
     }
   });
+
+  var changedKeys = Object.keys(newValues);
+  if (changedKeys.length) {
+    logAudit_('UPDATE', 'Settings', '', 'Updated settings: ' + changedKeys.join(', '));
+  }
 
   return { success: true, settings: getSettings() };
 }

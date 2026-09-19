@@ -4,6 +4,7 @@
  * FuelPricePerLitre | FuelConsumptionKmPerL | FuelRatePerKm | FuelCost |
  * TollFee | ZrpFee | VidFee | OtherFeesDescription | OtherFeesAmount | TripExpenses |
  * Subtotal | MarginPercent | MarginAmount |
+ * OrderType | BrickQuantity | BrickPricePer1000 | BrickCost |
  * LoadBringerId | LoadBringerName | LoadLevyAmount |
  * TotalBeforeDiscount | DiscountAmount | DiscountReason | TotalCost |
  * Notes | CreatedAt
@@ -15,22 +16,33 @@
  *   tripExpenses        = tollFee + zrpFee + vidFee + otherFeesAmount
  *   subtotal            = fuelCost + tripExpenses
  *   marginAmount        = subtotal x (companyMarginPercent / 100)
+ *   brickCost           = (brickQuantity / 1000) x Settings' BRICK_PRICE_PER_1000,
+ *                         IF orderType is 'Transport + Bricks', else 0 - billed
+ *                         at its set price, margin is not re-applied to it
  *   loadLevyAmount      = Settings' LOAD_LEVY_AMOUNT if a load bringer is
- *                         selected for this trip, else 0 - baked into the
+ *                         named for this trip, else 0 - baked into the
  *                         client's total (the client covers the referral
  *                         payout), not absorbed by the company
- *   totalBeforeDiscount = subtotal + marginAmount + loadLevyAmount
+ *   totalBeforeDiscount = subtotal + marginAmount + brickCost + loadLevyAmount
  *   totalCost           = totalBeforeDiscount - discountAmount   <- the quote given to the client
+ *
+ * Net profit per trip (see AccountingService.gs/DashboardService.gs/
+ * TrendsService.gs) is marginAmount + brickCost - discountAmount, since
+ * brickCost has no tracked cost-of-goods to net against (only its client
+ * sell price), and loadLevyAmount/fuelCost/tripExpenses are real costs
+ * already excluded from that figure.
  */
+
+var ORDER_TYPES = ['Delivery Only', 'Transport + Bricks'];
 
 /**
  * Computes the full quote breakdown. Always re-reads fuel price, fuel
- * consumption, margin, and load levy from Settings server-side so a stale
- * client-side value can never be submitted as truth. Does not persist
- * anything.
+ * consumption, margin, load levy, and brick price from Settings server-side
+ * so a stale client-side value can never be submitted as truth. Does not
+ * persist anything.
  *
  * input: { oneWayDistanceKm, tollFee, zrpFee, vidFee, otherFeesAmount,
- *          loadBringerName, discountAmount, discountReason }
+ *          orderType, brickQuantity, loadBringerName, discountAmount, discountReason }
  */
 function computeTripQuote_(input) {
   input = input || {};
@@ -53,13 +65,21 @@ function computeTripQuote_(input) {
   var subtotal = round2_(fuelCost + tripExpenses);
   var marginAmount = round2_(subtotal * settings.companyMarginPercent / 100);
 
+  var orderType = ORDER_TYPES.indexOf(input.orderType) !== -1 ? input.orderType : 'Delivery Only';
+  var brickQuantity = 0;
+  var brickCost = 0;
+  if (orderType === 'Transport + Bricks') {
+    brickQuantity = validatePositiveNumber_(input.brickQuantity, 'Number of bricks');
+    brickCost = round2_((brickQuantity / 1000) * settings.brickPricePer1000);
+  }
+
   // Freehand-typed, like the client - resolved to an actual record (and
   // created if new) only at save time, never here, so previewing a quote
   // can't create a load bringer as a side effect.
   var loadBringerName = String(input.loadBringerName || '').trim();
   var loadLevyAmount = loadBringerName ? settings.loadLevyAmount : 0;
 
-  var totalBeforeDiscount = round2_(subtotal + marginAmount + loadLevyAmount);
+  var totalBeforeDiscount = round2_(subtotal + marginAmount + brickCost + loadLevyAmount);
 
   var discountAmount = validateNonNegativeNumber_(input.discountAmount || 0, 'Discount');
   if (discountAmount > totalBeforeDiscount) {
@@ -84,6 +104,10 @@ function computeTripQuote_(input) {
     subtotal: subtotal,
     marginPercent: settings.companyMarginPercent,
     marginAmount: marginAmount,
+    orderType: orderType,
+    brickQuantity: brickQuantity,
+    brickPricePer1000: settings.brickPricePer1000,
+    brickCost: brickCost,
     loadBringerName: loadBringerName,
     loadLevyAmount: loadLevyAmount,
     totalBeforeDiscount: totalBeforeDiscount,
@@ -139,10 +163,13 @@ function saveTrip(tripInput) {
     quote.fuelPricePerLitre, quote.fuelConsumptionKmPerL, quote.fuelRatePerKm, quote.fuelCost,
     quote.tollFee, quote.zrpFee, quote.vidFee, otherFeesDescription, quote.otherFeesAmount, quote.tripExpenses,
     quote.subtotal, quote.marginPercent, quote.marginAmount,
+    quote.orderType, quote.brickQuantity, quote.brickPricePer1000, quote.brickCost,
     loadBringerId, quote.loadBringerName, quote.loadLevyAmount,
     quote.totalBeforeDiscount, quote.discountAmount, quote.discountReason, quote.totalCost,
     notes, now
   ]);
+
+  logAudit_('CREATE', 'Trip', id, 'Quoted trip for ' + client.name + ' to ' + destination + ' (' + quote.currencySymbol + quote.totalCost.toFixed(2) + ')');
 
   return {
     success: true,
@@ -155,6 +182,8 @@ function saveTrip(tripInput) {
       OtherFeesDescription: otherFeesDescription, OtherFeesAmount: quote.otherFeesAmount,
       TripExpenses: quote.tripExpenses, Subtotal: quote.subtotal,
       MarginPercent: quote.marginPercent, MarginAmount: quote.marginAmount,
+      OrderType: quote.orderType, BrickQuantity: quote.brickQuantity,
+      BrickPricePer1000: quote.brickPricePer1000, BrickCost: quote.brickCost,
       LoadBringerId: loadBringerId, LoadBringerName: quote.loadBringerName, LoadLevyAmount: quote.loadLevyAmount,
       TotalBeforeDiscount: quote.totalBeforeDiscount, DiscountAmount: quote.discountAmount,
       DiscountReason: quote.discountReason, TotalCost: quote.totalCost,
@@ -185,6 +214,10 @@ function tripRowToObject_(row) {
     subtotal: Number(row.Subtotal),
     marginPercent: Number(row.MarginPercent),
     marginAmount: Number(row.MarginAmount),
+    orderType: row.OrderType || 'Delivery Only',
+    brickQuantity: Number(row.BrickQuantity) || 0,
+    brickPricePer1000: Number(row.BrickPricePer1000) || 0,
+    brickCost: Number(row.BrickCost) || 0,
     loadBringerId: row.LoadBringerId || '',
     loadBringerName: row.LoadBringerName || '',
     loadLevyAmount: Number(row.LoadLevyAmount) || 0,

@@ -1,0 +1,31 @@
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Audit Log</h1>
+    <p class="page-sub">Who changed what, and when &mdash; every create, edit, deactivate, and reactivate across the system.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="form-grid">
+    <div class="field">
+      <label for="audit-filter">Filter by type</label>
+      <select id="audit-filter">
+        <option value="">All</option>
+        <option value="Trip">Trips</option>
+        <option value="Client">Clients</option>
+        <option value="LoadBringer">Load Bringers</option>
+        <option value="Truck">Trucks</option>
+        <option value="Trailer">Trailers</option>
+        <option value="Driver">Drivers</option>
+        <option value="Expense">Business Expenses</option>
+        <option value="Settings">Settings</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap" id="audit-table-wrap">
+    <div class="empty-state">Loading&hellip;</div>
+  </div>
+</div>

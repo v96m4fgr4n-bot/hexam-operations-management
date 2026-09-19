@@ -79,6 +79,7 @@ function addTruck(data) {
   var id = generateId_('truck');
   sheet.appendRow([id, regNumber, data.roadworthyExpiry || '', data.nextServiceDue || '', status, new Date()]);
 
+  logAudit_('CREATE', 'Truck', id, 'Added truck ' + regNumber);
   return { success: true, truck: getTruck(id) };
 }
 
@@ -106,6 +107,7 @@ function updateTruck(truckId, data) {
       if (data.status !== undefined) {
         sheet.getRange(rowNum, headers.indexOf('Status') + 1).setValue(validateFleetStatus_(data.status));
       }
+      logAudit_('UPDATE', 'Truck', truckId, 'Updated truck ' + (data.regNumber || rows[r][headers.indexOf('RegNumber')]) + (data.status ? ' (status: ' + data.status + ')' : ''));
       return { success: true, truck: getTruck(truckId) };
     }
   }
@@ -149,6 +151,7 @@ function addTrailer(data) {
   var id = generateId_('trailer');
   sheet.appendRow([id, regNumber, data.roadworthyExpiry || '', data.nextServiceDue || '', status, new Date()]);
 
+  logAudit_('CREATE', 'Trailer', id, 'Added trailer ' + regNumber);
   return { success: true, trailer: getTrailer(id) };
 }
 
@@ -176,6 +179,7 @@ function updateTrailer(trailerId, data) {
       if (data.status !== undefined) {
         sheet.getRange(rowNum, headers.indexOf('Status') + 1).setValue(validateFleetStatus_(data.status));
       }
+      logAudit_('UPDATE', 'Trailer', trailerId, 'Updated trailer ' + (data.regNumber || rows[r][headers.indexOf('RegNumber')]) + (data.status ? ' (status: ' + data.status + ')' : ''));
       return { success: true, trailer: getTrailer(trailerId) };
     }
   }
@@ -234,6 +238,7 @@ function addDriver(data) {
   var id = generateId_('driver');
   sheet.appendRow([id, name, data.phone || '', assignedTruckId, true, new Date()]);
 
+  logAudit_('CREATE', 'Driver', id, 'Added driver ' + name);
   return { success: true, driver: getDriver(id) };
 }
 
@@ -262,6 +267,7 @@ function updateDriver(driverId, data) {
       if (data.assignedTruckId !== undefined) {
         sheet.getRange(rowNum, headers.indexOf('AssignedTruckId') + 1).setValue(String(data.assignedTruckId || '').trim());
       }
+      logAudit_('UPDATE', 'Driver', driverId, 'Updated driver ' + (data.name || rows[r][headers.indexOf('Name')]));
       return { success: true, driver: getDriver(driverId) };
     }
   }
@@ -276,10 +282,12 @@ function setDriverActive_(driverId, active) {
   var headers = rows[0];
   var idCol = headers.indexOf('DriverId');
   var activeCol = headers.indexOf('Active');
+  var nameCol = headers.indexOf('Name');
 
   for (var r = 1; r < rows.length; r++) {
     if (rows[r][idCol] === driverId) {
       sheet.getRange(r + 1, activeCol + 1).setValue(active);
+      logAudit_(active ? 'REACTIVATE' : 'DEACTIVATE', 'Driver', driverId, (active ? 'Reactivated' : 'Deactivated') + ' driver ' + rows[r][nameCol]);
       return { success: true };
     }
   }

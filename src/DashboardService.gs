@@ -19,7 +19,7 @@ function getDashboardSummary() {
   };
 
   trips.forEach(function (t) {
-    var netProfit = round2_(t.marginAmount - t.discountAmount);
+    var netProfit = round2_(t.marginAmount + t.brickCost - t.discountAmount);
     summary.allTimeRevenue = round2_(summary.allTimeRevenue + t.totalCost);
     summary.allTimeProfit = round2_(summary.allTimeProfit + netProfit);
 
