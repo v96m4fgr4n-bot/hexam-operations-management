@@ -4,6 +4,10 @@
 
 var SPREADSHEET_ID_PROPERTY = 'SPREADSHEET_ID';
 
+// Pre-wired to the spreadsheet created for this deployment. Overridden per-project
+// by setting a SPREADSHEET_ID script property (Project Settings > Script Properties).
+var DEFAULT_SPREADSHEET_ID = '1PhRwDCdoryF8CvwIq67tMqPtwoXR-vtjvbXJAw-Z4pKvy96oX46BRUVp';
+
 /**
  * Returns the Spreadsheet backing this app, resolved via the script property
  * set by Setup.gs's initializeSpreadsheet(). Throws a clear error if setup

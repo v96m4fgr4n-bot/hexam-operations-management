@@ -43,9 +43,20 @@ function getOrCreateSpreadsheet_() {
     try {
       return SpreadsheetApp.openById(id);
     } catch (err) {
-      // Stored ID is stale (e.g. file was deleted) - fall through and create a new one.
+      // Stored ID is stale (e.g. file was deleted) - fall through and try the default.
     }
   }
+
+  if (DEFAULT_SPREADSHEET_ID) {
+    try {
+      var defaultSs = SpreadsheetApp.openById(DEFAULT_SPREADSHEET_ID);
+      props.setProperty(SPREADSHEET_ID_PROPERTY, defaultSs.getId());
+      return defaultSs;
+    } catch (err) {
+      // Default ID isn't accessible - fall through and create a new one.
+    }
+  }
+
   var ss = SpreadsheetApp.create('Hexam Bricks Operations Data');
   props.setProperty(SPREADSHEET_ID_PROPERTY, ss.getId());
   return ss;

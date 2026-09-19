@@ -8,7 +8,9 @@ VID fee (+ any other ad-hoc fee)**.
   in km) × a configurable fuel rate per km.
 - **Toll / ZRP / VID fees** each have a configurable default (set once in
   Settings) but can be overridden per trip.
-- Data is stored in a Google Sheet created automatically on first setup.
+- Data is stored in a Google Sheet, pre-wired to a spreadsheet already
+  created for this deployment (falls back to auto-creating one if that
+  sheet isn't reachable — see "One-time setup").
 - The app is a standalone Apps Script web app (not a Sheet sidebar) with its
   own URL.
 
@@ -62,9 +64,20 @@ account:
    ```
    In the editor, select **initializeSpreadsheet** from the function
    dropdown (top toolbar) and click **Run**. Approve the Google Sheets/Drive
-   permission prompt the first time. Check **View > Logs** (or **Executions**)
-   for the URL of the spreadsheet that was just created — bookmark it, since
-   that's where all clients/trips/settings live.
+   permission prompt the first time.
+
+   `src/Utils.gs` has a `DEFAULT_SPREADSHEET_ID` pre-set to a spreadsheet the
+   user already created for this deployment — `initializeSpreadsheet` opens
+   that sheet and adds the `Settings`/`Clients`/`Trips` tabs to it, rather
+   than creating a brand-new spreadsheet (it only creates a new one if that
+   default ID can't be opened, e.g. it's ever deleted or unshared). Check
+   **View > Logs** (or **Executions**) for the spreadsheet URL it logs —
+   bookmark it, since that's where all clients/trips/settings live.
+
+   To point the app at a *different* sheet instead (e.g. for a separate
+   test/staging copy), open **Project Settings > Script Properties** and add
+   a `SPREADSHEET_ID` property with that sheet's ID — it takes priority over
+   the default.
 
    `initializeSpreadsheet` is safe to re-run — it only creates sheets or
    seeds settings that don't already exist yet.
