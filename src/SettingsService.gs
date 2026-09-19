@@ -4,7 +4,7 @@
 
 var SETTINGS_KEY_MAP = {
   fuelPricePerLitre: 'FUEL_PRICE_PER_LITRE',
-  fuelConsumptionLPerKm: 'FUEL_CONSUMPTION_L_PER_KM',
+  fuelConsumptionKmPerL: 'FUEL_CONSUMPTION_KM_PER_L',
   defaultTollFee: 'DEFAULT_TOLL_FEE',
   defaultZrpFee: 'DEFAULT_ZRP_FEE',
   defaultVidFee: 'DEFAULT_VID_FEE',
@@ -26,7 +26,7 @@ function getSettings() {
 
   return {
     fuelPricePerLitre: Number(byKey.FUEL_PRICE_PER_LITRE) || 0,
-    fuelConsumptionLPerKm: Number(byKey.FUEL_CONSUMPTION_L_PER_KM) || 0,
+    fuelConsumptionKmPerL: Number(byKey.FUEL_CONSUMPTION_KM_PER_L) || 0,
     defaultTollFee: Number(byKey.DEFAULT_TOLL_FEE) || 0,
     defaultZrpFee: Number(byKey.DEFAULT_ZRP_FEE) || 0,
     defaultVidFee: Number(byKey.DEFAULT_VID_FEE) || 0,
@@ -58,6 +58,9 @@ function updateSettings(newValues) {
     var value = newValues[camelKey];
     if (camelKey === 'currencySymbol') {
       value = validateNonEmptyString_(value, 'Currency symbol');
+    } else if (camelKey === 'fuelConsumptionKmPerL') {
+      // Divides into fuel price to get the rate per km - zero would divide by zero.
+      value = validatePositiveNumber_(value, 'Fuel consumption (km per litre)');
     } else {
       value = validateNonNegativeNumber_(value, camelKey);
     }

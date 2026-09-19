@@ -1,14 +1,14 @@
 /**
  * Trips sheet: TripId | TripDate | ClientId | ClientName | Destination |
  * OneWayDistanceKm | RoundTripDistanceKm |
- * FuelPricePerLitre | FuelConsumptionLPerKm | FuelRatePerKm | FuelCost |
+ * FuelPricePerLitre | FuelConsumptionKmPerL | FuelRatePerKm | FuelCost |
  * TollFee | ZrpFee | VidFee | OtherFeesDescription | OtherFeesAmount | TripExpenses |
  * Subtotal | MarginPercent | MarginAmount | TotalCost |
  * Notes | CreatedAt
  *
  * Quote build-up (all client-facing pricing derives from Settings, never
  * from a client-submitted number):
- *   fuelRatePerKm = fuelPricePerLitre x fuelConsumptionLPerKm
+ *   fuelRatePerKm = fuelPricePerLitre / fuelConsumptionKmPerL
  *   fuelCost      = roundTripDistanceKm x fuelRatePerKm
  *   tripExpenses  = tollFee + zrpFee + vidFee + otherFeesAmount
  *   subtotal      = fuelCost + tripExpenses
@@ -33,9 +33,13 @@ function computeTripQuote_(input) {
   var vidFee = validateNonNegativeNumber_(input.vidFee !== undefined ? input.vidFee : settings.defaultVidFee, 'VID fee');
   var otherFeesAmount = validateNonNegativeNumber_(input.otherFeesAmount || 0, 'Other fees');
 
+  if (!(settings.fuelConsumptionKmPerL > 0)) {
+    throw new Error('Fuel consumption (km per litre) must be set to a positive number in Settings before quoting a trip.');
+  }
+
   var roundTripDistanceKm = round2_(oneWayDistanceKm * 2);
-  var fuelRatePerKm = round2_(settings.fuelPricePerLitre * settings.fuelConsumptionLPerKm);
-  var fuelCost = round2_(roundTripDistanceKm * settings.fuelPricePerLitre * settings.fuelConsumptionLPerKm);
+  var fuelRatePerKm = round2_(settings.fuelPricePerLitre / settings.fuelConsumptionKmPerL);
+  var fuelCost = round2_(roundTripDistanceKm * fuelRatePerKm);
   var tripExpenses = round2_(tollFee + zrpFee + vidFee + otherFeesAmount);
   var subtotal = round2_(fuelCost + tripExpenses);
   var marginAmount = round2_(subtotal * settings.companyMarginPercent / 100);
@@ -45,7 +49,7 @@ function computeTripQuote_(input) {
     oneWayDistanceKm: oneWayDistanceKm,
     roundTripDistanceKm: roundTripDistanceKm,
     fuelPricePerLitre: settings.fuelPricePerLitre,
-    fuelConsumptionLPerKm: settings.fuelConsumptionLPerKm,
+    fuelConsumptionKmPerL: settings.fuelConsumptionKmPerL,
     fuelRatePerKm: fuelRatePerKm,
     fuelCost: fuelCost,
     tollFee: tollFee,
@@ -93,7 +97,7 @@ function saveTrip(tripInput) {
   sheet.appendRow([
     id, now, clientId, client.name, destination,
     quote.oneWayDistanceKm, quote.roundTripDistanceKm,
-    quote.fuelPricePerLitre, quote.fuelConsumptionLPerKm, quote.fuelRatePerKm, quote.fuelCost,
+    quote.fuelPricePerLitre, quote.fuelConsumptionKmPerL, quote.fuelRatePerKm, quote.fuelCost,
     quote.tollFee, quote.zrpFee, quote.vidFee, otherFeesDescription, quote.otherFeesAmount, quote.tripExpenses,
     quote.subtotal, quote.marginPercent, quote.marginAmount, quote.totalCost,
     notes, now
@@ -104,7 +108,7 @@ function saveTrip(tripInput) {
     trip: tripRowToObject_({
       TripId: id, TripDate: now, ClientId: clientId, ClientName: client.name, Destination: destination,
       OneWayDistanceKm: quote.oneWayDistanceKm, RoundTripDistanceKm: quote.roundTripDistanceKm,
-      FuelPricePerLitre: quote.fuelPricePerLitre, FuelConsumptionLPerKm: quote.fuelConsumptionLPerKm,
+      FuelPricePerLitre: quote.fuelPricePerLitre, FuelConsumptionKmPerL: quote.fuelConsumptionKmPerL,
       FuelRatePerKm: quote.fuelRatePerKm, FuelCost: quote.fuelCost,
       TollFee: quote.tollFee, ZrpFee: quote.zrpFee, VidFee: quote.vidFee,
       OtherFeesDescription: otherFeesDescription, OtherFeesAmount: quote.otherFeesAmount,
@@ -125,7 +129,7 @@ function tripRowToObject_(row) {
     oneWayDistanceKm: Number(row.OneWayDistanceKm),
     roundTripDistanceKm: Number(row.RoundTripDistanceKm),
     fuelPricePerLitre: Number(row.FuelPricePerLitre),
-    fuelConsumptionLPerKm: Number(row.FuelConsumptionLPerKm),
+    fuelConsumptionKmPerL: Number(row.FuelConsumptionKmPerL),
     fuelRatePerKm: Number(row.FuelRatePerKm),
     fuelCost: Number(row.FuelCost),
     tollFee: Number(row.TollFee),

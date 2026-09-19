@@ -78,8 +78,8 @@
 
   function populateSettingsForm(settings) {
     $('settings-fuel-price').value = settings.fuelPricePerLitre;
-    $('settings-fuel-consumption').value = settings.fuelConsumptionLPerKm;
-    $('settings-fuel-rate-preview').value = money(settings.fuelPricePerLitre * settings.fuelConsumptionLPerKm) + ' / km';
+    $('settings-fuel-consumption').value = settings.fuelConsumptionKmPerL;
+    $('settings-fuel-rate-preview').value = fuelRatePreview_(settings.fuelPricePerLitre, settings.fuelConsumptionKmPerL);
     $('settings-currency').value = settings.currencySymbol;
     $('settings-toll').value = settings.defaultTollFee;
     $('settings-zrp').value = settings.defaultZrpFee;
@@ -87,11 +87,16 @@
     $('settings-margin').value = settings.companyMarginPercent;
   }
 
+  function fuelRatePreview_(price, consumption) {
+    if (!(consumption > 0)) return '-';
+    return money(price / consumption) + ' / km';
+  }
+
   ['settings-fuel-price', 'settings-fuel-consumption'].forEach(function (id) {
     $(id).addEventListener('input', function () {
       var price = Number($('settings-fuel-price').value) || 0;
       var consumption = Number($('settings-fuel-consumption').value) || 0;
-      $('settings-fuel-rate-preview').value = money(price * consumption) + ' / km';
+      $('settings-fuel-rate-preview').value = fuelRatePreview_(price, consumption);
     });
   });
 
@@ -114,7 +119,7 @@
       showMsg(msg, err.message || String(err), true);
     }).updateSettings({
       fuelPricePerLitre: Number($('settings-fuel-price').value),
-      fuelConsumptionLPerKm: Number($('settings-fuel-consumption').value),
+      fuelConsumptionKmPerL: Number($('settings-fuel-consumption').value),
       currencySymbol: $('settings-currency').value,
       defaultTollFee: Number($('settings-toll').value),
       defaultZrpFee: Number($('settings-zrp').value),
@@ -271,7 +276,9 @@
     var other = Number($('trip-other-amount').value) || 0;
 
     var roundTrip = distance * 2;
-    var fuelRate = STATE.settings.fuelPricePerLitre * STATE.settings.fuelConsumptionLPerKm;
+    var fuelRate = STATE.settings.fuelConsumptionKmPerL > 0
+      ? STATE.settings.fuelPricePerLitre / STATE.settings.fuelConsumptionKmPerL
+      : 0;
     var fuelCost = roundTrip * fuelRate;
     var tripExpenses = toll + zrp + vid + other;
     var subtotal = fuelCost + tripExpenses;

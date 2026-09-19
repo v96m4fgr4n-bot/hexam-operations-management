@@ -18,7 +18,7 @@ function initializeSpreadsheet() {
   ensureSheetWithHeaders_(ss, 'Trips', [
     'TripId', 'TripDate', 'ClientId', 'ClientName', 'Destination',
     'OneWayDistanceKm', 'RoundTripDistanceKm',
-    'FuelPricePerLitre', 'FuelConsumptionLPerKm', 'FuelRatePerKm', 'FuelCost',
+    'FuelPricePerLitre', 'FuelConsumptionKmPerL', 'FuelRatePerKm', 'FuelCost',
     'TollFee', 'ZrpFee', 'VidFee', 'OtherFeesDescription', 'OtherFeesAmount', 'TripExpenses',
     'Subtotal', 'MarginPercent', 'MarginAmount', 'TotalCost',
     'Notes', 'CreatedAt'
@@ -82,20 +82,21 @@ function ensureSheetWithHeaders_(ss, name, headers) {
 /**
  * Adds any Settings key that isn't already present, and drops keys that are
  * no longer used (e.g. a flat FUEL_RATE_PER_KM from before fuel rate was
- * derived from price-per-litre x consumption). Never touches the value of a
- * key that's already there and still in use.
+ * derived from fuel price/consumption, or a litres-per-km consumption
+ * figure from before it was switched to km-per-litre). Never touches the
+ * value of a key that's already there and still in use.
  */
 function seedDefaultSettings_(sheet) {
   var defaults = [
     ['FUEL_PRICE_PER_LITRE', 1.5, 'Cost of fuel per litre'],
-    ['FUEL_CONSUMPTION_L_PER_KM', 0.4, 'Truck fuel consumption in litres per km (round-trip), used to derive the fuel rate per km'],
+    ['FUEL_CONSUMPTION_KM_PER_L', 2.5, 'Truck fuel consumption in km per litre (round-trip average), used to derive the fuel rate per km'],
     ['DEFAULT_TOLL_FEE', 0, 'Default toll fee applied to a new trip'],
     ['DEFAULT_ZRP_FEE', 0, 'Default ZRP fee applied to a new trip'],
     ['DEFAULT_VID_FEE', 0, 'Default VID fee applied to a new trip'],
     ['COMPANY_MARGIN_PERCENT', 15, 'Margin percentage applied on top of fuel cost + trip expenses to produce the client quote'],
     ['CURRENCY_SYMBOL', '$', 'Currency symbol used for display only']
   ];
-  var obsoleteKeys = { FUEL_RATE_PER_KM: true };
+  var obsoleteKeys = { FUEL_RATE_PER_KM: true, FUEL_CONSUMPTION_L_PER_KM: true };
 
   var lastRow = sheet.getLastRow();
   var existing = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 4).getValues() : [];

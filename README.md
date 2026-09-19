@@ -26,7 +26,7 @@ rate), and a company margin is applied on top:
 
 ```
 round-trip distance (km) = one-way distance (km) x 2
-fuel rate per km          = fuel price per litre x fuel consumption (litres/km)
+fuel rate per km          = fuel price per litre / fuel consumption (km per litre)
 fuel cost                 = round-trip distance x fuel rate per km
 trip expenses              = toll fee + ZRP fee + VID fee (+ optional other fee)
 subtotal                  = fuel cost + trip expenses
@@ -49,7 +49,7 @@ Settings screen):
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `FUEL_PRICE_PER_LITRE` | 1.5 | Cost of fuel per litre |
-| `FUEL_CONSUMPTION_L_PER_KM` | 0.4 | Truck consumption, litres per km (round-trip average) |
+| `FUEL_CONSUMPTION_KM_PER_L` | 2.5 | Truck consumption, km per litre (round-trip average) |
 | `DEFAULT_TOLL_FEE` | 0 | Default toll fee, overridable per trip |
 | `DEFAULT_ZRP_FEE` | 0 | Default ZRP fee, overridable per trip |
 | `DEFAULT_VID_FEE` | 0 | Default VID fee, overridable per trip |
@@ -64,7 +64,7 @@ can only be quoted for an active client.
 
 **Trips** (append-only log written by the web app): TripId, TripDate,
 ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,
-FuelPricePerLitre, FuelConsumptionLPerKm, FuelRatePerKm, FuelCost,
+FuelPricePerLitre, FuelConsumptionKmPerL, FuelRatePerKm, FuelCost,
 TollFee, ZrpFee, VidFee, OtherFeesDescription, OtherFeesAmount,
 TripExpenses, Subtotal, MarginPercent, MarginAmount, TotalCost, Notes,
 CreatedAt.
