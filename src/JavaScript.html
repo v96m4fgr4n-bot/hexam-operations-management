@@ -287,7 +287,7 @@
           '<td>' + escapeHtml(b.phone) + '</td>' +
           '<td><span class="badge ' + (b.active ? 'ok' : 'neutral') + '">' + (b.active ? 'Active' : 'Inactive') + '</span></td>' +
           '<td>' + b.tripCount + '</td>' +
-          '<td><strong>' + money(b.totalOwed) + '</strong></td>' +
+          '<td><strong>' + money(b.totalPaid) + '</strong></td>' +
           '<td>' +
             '<button class="btn sm ghost" data-edit="' + escapeHtml(b.id) + '">Edit</button> ' +
             (b.active
@@ -296,7 +296,7 @@
           '</td>' +
           '</tr>';
       }).join('');
-      wrap.innerHTML = '<table><thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Loads brought</th><th>Total owed</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+      wrap.innerHTML = '<table><thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Loads brought</th><th>Total paid</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
 
       wrap.querySelectorAll('[data-edit]').forEach(function (btn) {
         btn.addEventListener('click', function () {

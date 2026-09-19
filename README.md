@@ -47,11 +47,11 @@ that gets written to the record.
 
 **Load levy**: when a trip's load was referred to Hexam by someone (a
 "load bringer"), the configured levy is added to *that client's* total —
-the client covers the referral payout, the company doesn't absorb it. The
-Load Bringers screen shows a running tally (loads brought + total owed)
-per bringer for month-end payout, derived live from Trips — it's not a
-paid/unpaid ledger, so once someone is paid there's currently no way to
-mark that in the app.
+the client covers the referral payout, the company doesn't absorb it.
+Load bringers are paid on the spot per load, not batched. The Load
+Bringers screen shows a running tally (loads brought + total paid) per
+bringer, derived live from Trips, as a historical record of what's gone
+out to each person.
 
 **Discount**: an optional flat amount taken off a trip's total (revealed by
 an "Add discount" button on the New Trip screen), validated so it can never
@@ -81,8 +81,8 @@ can only be quoted for an active client.
 
 **LoadBringers**: LoadBringerId, Name, Phone, Active, CreatedAt. Same
 soft-delete pattern as Clients. Selecting one on a trip (optional) bakes
-the load levy into that trip's total and is what `getLoadBringerSummary()`
-groups by for the month-end payout tally.
+the load levy into that trip's total, paid to them on the spot;
+`getLoadBringerSummary()` groups by bringer for a running paid-total record.
 
 **Trips** (append-only log written by the web app): TripId, TripDate,
 ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,

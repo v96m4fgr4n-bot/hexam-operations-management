@@ -2,10 +2,11 @@
  * LoadBringers sheet: LoadBringerId | Name | Phone | Active | CreatedAt
  *
  * A load bringer is someone paid a load levy (see Settings: LOAD_LEVY_AMOUNT)
- * for referring a load/client on a trip. The levy is baked into that
- * trip's client-facing total (see TripService.gs) and owed to the bringer
- * at month end - getLoadBringerSummary() below is what that payout is read
- * from. Never hard-deleted (Trips reference LoadBringerId) -
+ * on the spot for referring a load/client on a trip. The levy is baked into
+ * that trip's client-facing total (see TripService.gs). getLoadBringerSummary()
+ * below is a running record of what's been paid to each bringer, for
+ * reference - not an outstanding balance, since payment already happened at
+ * the time of the trip. Never hard-deleted (Trips reference LoadBringerId) -
  * deactivateLoadBringer just flips Active to false, and reactivateLoadBringer
  * flips it back.
  */
@@ -104,21 +105,22 @@ function reactivateLoadBringer(loadBringerId) {
 
 /**
  * Client-callable: every load bringer (active and inactive) with a running
- * tally of loads brought and total levy owed, derived from Trips - this is
- * what the month-end payout is read from. Not a paid/unpaid ledger; it's a
- * live all-time total, since the app doesn't track payout history.
+ * tally of loads brought and total levy paid, derived from Trips. Load
+ * bringers are paid on the spot per load, not batched - this is a
+ * historical record of what's gone out to each person, not an outstanding
+ * balance.
  */
 function getLoadBringerSummary() {
   var bringers = getLoadBringers(true);
   var totals = {};
   bringers.forEach(function (b) {
-    totals[b.id] = { tripCount: 0, totalOwed: 0 };
+    totals[b.id] = { tripCount: 0, totalPaid: 0 };
   });
 
   getTrips({}).forEach(function (trip) {
     if (!trip.loadBringerId || !totals[trip.loadBringerId]) return;
     totals[trip.loadBringerId].tripCount += 1;
-    totals[trip.loadBringerId].totalOwed = round2_(totals[trip.loadBringerId].totalOwed + trip.loadLevyAmount);
+    totals[trip.loadBringerId].totalPaid = round2_(totals[trip.loadBringerId].totalPaid + trip.loadLevyAmount);
   });
 
   return bringers
@@ -129,7 +131,7 @@ function getLoadBringerSummary() {
         phone: b.phone,
         active: b.active,
         tripCount: totals[b.id].tripCount,
-        totalOwed: totals[b.id].totalOwed
+        totalPaid: totals[b.id].totalPaid
       };
     })
     .sort(function (a, b) { return a.name.localeCompare(b.name); });
