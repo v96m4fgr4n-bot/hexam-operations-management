@@ -22,9 +22,9 @@ spreadsheet.
 
 - **Dashboard** (landing screen) — today/month revenue, **net** profit (color-
   coded green/red), and trip counts, average quote value, active
-  client/bringer counts, recent trips. Net profit is trip margin minus that
-  period's recorded business expenses (see "Net profit per trip" and
-  Trends' scope note below) — not just trip-level gross margin.
+  client/bringer/driver counts, recent trips. Net profit is trip margin
+  minus that period's recorded business expenses (see "Net profit per
+  trip" and Trends' scope note below) — not just trip-level gross margin.
 - **New Trip** — quote a trip; client and load bringer are both typed
   freehand (see below), with a live client-side cost preview. Optionally
   records an unbilled "other expense" and picks an assigned driver from
