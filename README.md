@@ -74,10 +74,16 @@ Settings screen):
 | `CURRENCY_SYMBOL` | `$` | Symbol shown next to amounts (display only) |
 
 **Clients**: ClientId, ClientName, ContactPerson, Phone, Email, Address,
-Active, CreatedAt. Clients are soft-deleted (Active flag, toggleable from
-the Clients screen) rather than removed, since historical trips reference
-them by ID and must keep working even if a client goes inactive. Trips
-can only be quoted for an active client.
+Active, CreatedAt. There's no client picker on the New Trip screen — name
+and phone are typed freehand (with a datalist of existing names for quick
+reuse), and `findOrCreateClient_` reuses an exact case-insensitive name
+match among active clients or creates a new one when the trip is saved.
+The Clients screen is for managing existing records (edit, fill in
+contact/email/address, deactivate/reactivate) rather than for entry.
+Clients are soft-deleted (Active flag) rather than removed, since
+historical trips reference them by ID and must keep working even if a
+client goes inactive; quoting under a name that was deliberately
+deactivated creates a fresh client rather than silently reactivating it.
 
 **LoadBringers**: LoadBringerId, Name, Phone, Active, CreatedAt. Same
 soft-delete pattern as Clients. Selecting one on a trip (optional) bakes
@@ -113,13 +119,15 @@ src/
                           updateLoadBringer / deactivateLoadBringer /
                           reactivateLoadBringer / getLoadBringerSummary
   TripService.gs          computeTripQuote_ / getTripQuote / saveTrip / getTrips
+  AccountingService.gs    getAccountingSummary(): income/expense roll-up from Trips
   Index.html               Sidebar+topbar shell (mobile-collapsible)
   CSS.html                 Hexham Bricks-branded styles
   JavaScript.html          Client-side logic: nav, forms, live quote preview, API calls
-  NewTripView.html         New Trip screen
+  NewTripView.html         New Trip screen (client entered freehand)
   TripHistoryView.html     Trip History screen
-  ClientsView.html          Clients screen (add/edit/deactivate/reactivate)
-  LoadBringersView.html    Load Bringers screen (add/edit/deactivate/reactivate + payout tally)
+  ClientsView.html          Clients screen (edit/deactivate/reactivate)
+  LoadBringersView.html    Load Bringers screen (add/edit/deactivate/reactivate + paid tally)
+  AccountingView.html      Accounting screen (income/expense summary + ledger)
   SettingsView.html        Settings screen
 ```
 

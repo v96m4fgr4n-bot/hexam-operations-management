@@ -107,20 +107,19 @@ function getTripQuote(input) {
 }
 
 /**
- * Validates, computes, and persists a trip record.
+ * Validates, computes, and persists a trip record. The client is entered
+ * freehand (name + phone) rather than picked from a pre-existing list -
+ * findOrCreateClient_ reuses a matching active client or creates a new one.
  *
- * tripInput: { clientId, destination, oneWayDistanceKm, tollFee, zrpFee, vidFee,
- *              otherFeesDescription, otherFeesAmount, loadBringerId,
- *              discountAmount, discountReason, notes }
+ * tripInput: { clientName, clientPhone, destination, oneWayDistanceKm,
+ *              tollFee, zrpFee, vidFee, otherFeesDescription, otherFeesAmount,
+ *              loadBringerId, discountAmount, discountReason, notes }
  */
 function saveTrip(tripInput) {
   tripInput = tripInput || {};
 
-  var clientId = validateNonEmptyString_(tripInput.clientId, 'Client');
-  var client = getClient(clientId);
-  if (!client || !client.active) {
-    throw new Error('Selected client is not valid or is no longer active.');
-  }
+  var client = findOrCreateClient_(tripInput.clientName, tripInput.clientPhone);
+  var clientId = client.id;
   var destination = validateNonEmptyString_(tripInput.destination, 'Destination');
   var otherFeesDescription = String(tripInput.otherFeesDescription || '').trim();
   var notes = String(tripInput.notes || '').trim();

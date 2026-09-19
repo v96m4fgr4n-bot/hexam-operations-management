@@ -110,3 +110,30 @@ function deactivateClient(clientId) {
 function reactivateClient(clientId) {
   return setClientActive_(clientId, true);
 }
+
+/**
+ * Resolves a freehand client name/phone typed on the New Trip screen to a
+ * client record - reusing an existing active client on an exact
+ * (case-insensitive) name match, updating their phone if a new one was
+ * given, or creating a new client otherwise. Never matches against an
+ * inactive client, so quoting under a name that was deliberately
+ * deactivated creates a fresh record rather than silently reactivating it.
+ */
+function findOrCreateClient_(name, phone) {
+  name = validateNonEmptyString_(name, 'Client name');
+  var phoneTrimmed = String(phone || '').trim();
+
+  var existing = getClients(false).filter(function (c) {
+    return c.name.trim().toLowerCase() === name.trim().toLowerCase();
+  })[0];
+
+  if (existing) {
+    if (phoneTrimmed && phoneTrimmed !== existing.phone) {
+      updateClient(existing.id, { phone: phoneTrimmed });
+      existing.phone = phoneTrimmed;
+    }
+    return existing;
+  }
+
+  return addClient({ name: name, phone: phoneTrimmed }).client;
+}

@@ -38,6 +38,7 @@
     if (viewName === 'trip-history') loadTripHistory();
     if (viewName === 'clients') loadClients();
     if (viewName === 'load-bringers') loadLoadBringers();
+    if (viewName === 'accounting') loadAccounting();
   }
 
   function openSidebar() {
@@ -137,10 +138,8 @@
   function loadClientsForTripForm() {
     google.script.run.withSuccessHandler(function (clients) {
       STATE.clients = clients;
-      var select = $('trip-client');
-      select.innerHTML = clients.length
-        ? clients.map(function (c) { return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + '</option>'; }).join('')
-        : '<option value="">No active clients - add one first</option>';
+      $('trip-client-datalist').innerHTML = clients
+        .map(function (c) { return '<option value="' + escapeHtml(c.name) + '">'; }).join('');
     }).withFailureHandler(function (err) {
       showMsg($('trip-msg'), err.message || String(err), true);
     }).getClients(false);
@@ -393,6 +392,22 @@
     $('trip-vid').value = STATE.settings.defaultVidFee;
   }
 
+  $('trip-client-name').addEventListener('input', function () {
+    var typed = this.value.trim().toLowerCase();
+    var match = STATE.clients.filter(function (c) { return c.name.trim().toLowerCase() === typed; })[0];
+    var hint = $('trip-client-match-hint');
+    if (!typed) {
+      hint.textContent = 'Type a name — matches an existing client, or adds a new one';
+    } else if (match) {
+      hint.textContent = 'Existing client' + (match.phone ? ' — phone on file: ' + match.phone : '');
+      if (match.phone && !$('trip-client-phone').value) {
+        $('trip-client-phone').value = match.phone;
+      }
+    } else {
+      hint.textContent = 'New client — will be added to the client list when this trip is saved';
+    }
+  });
+
   $('trip-discount-toggle').addEventListener('click', function () {
     var fields = $('trip-discount-fields');
     var showing = !fields.hidden;
@@ -463,8 +478,8 @@
     var msg = $('trip-msg');
     clearMsg(msg);
 
-    if (!$('trip-client').value) {
-      showMsg(msg, 'Add a client before quoting a trip.', true);
+    if (!$('trip-client-name').value.trim()) {
+      showMsg(msg, 'Enter a client name before quoting a trip.', true);
       return;
     }
 
@@ -478,13 +493,16 @@
       $('trip-form').reset();
       $('trip-discount-fields').hidden = true;
       $('trip-discount-toggle').textContent = '+ Add discount';
+      $('trip-client-match-hint').textContent = 'Type a name — matches an existing client, or adds a new one';
       prefillTripFeesFromSettings();
       updateTripPreview();
+      loadClientsForTripForm();
     }).withFailureHandler(function (err) {
       btn.disabled = false;
       showMsg(msg, err.message || String(err), true);
     }).saveTrip({
-      clientId: $('trip-client').value,
+      clientName: $('trip-client-name').value,
+      clientPhone: $('trip-client-phone').value,
       destination: $('trip-destination').value,
       oneWayDistanceKm: Number($('trip-distance').value),
       tollFee: Number($('trip-toll').value) || 0,
@@ -528,6 +546,55 @@
     }).withFailureHandler(function (err) {
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
     }).getTrips({});
+  }
+
+  /* ---------- Accounting ---------- */
+
+  function loadAccounting() {
+    google.script.run.withSuccessHandler(renderAccountingSummary).withFailureHandler(function (err) {
+      $('acct-sub').textContent = err.message || String(err);
+    }).getAccountingSummary();
+
+    var wrap = $('acct-ledger-wrap');
+    google.script.run.withSuccessHandler(function (trips) {
+      if (!trips.length) {
+        wrap.innerHTML = '<div class="empty-state">No trips yet.</div>';
+        return;
+      }
+      var rows = trips.map(function (t) {
+        var net = t.marginAmount - t.discountAmount;
+        return '<tr>' +
+          '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
+          '<td>' + escapeHtml(t.clientName) + '</td>' +
+          '<td>' + money(t.totalCost) + '</td>' +
+          '<td>' + money(t.fuelCost) + '</td>' +
+          '<td>' + money(t.tripExpenses) + '</td>' +
+          '<td>' + (t.loadLevyAmount > 0 ? money(t.loadLevyAmount) : '&mdash;') + '</td>' +
+          '<td><strong>' + money(net) + '</strong></td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Income</th><th>Fuel</th><th>Trip expenses</th><th>Load levy</th><th>Net</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getTrips({});
+  }
+
+  function renderAccountingSummary(summary) {
+    $('acct-sub').textContent = summary.tripCount + ' trip' + (summary.tripCount === 1 ? '' : 's') +
+      ' — income and expenses, derived automatically from trips as they\'re saved.';
+
+    $('acct-income').textContent = money(summary.totalIncome);
+    $('acct-expenses').textContent = money(summary.totalExpenses);
+
+    var netEl = $('acct-net');
+    netEl.textContent = money(summary.netProfit);
+    netEl.classList.remove('positive', 'negative');
+    netEl.classList.add(summary.netProfit >= 0 ? 'positive' : 'negative');
+
+    $('acct-fuel').textContent = money(summary.totalFuelExpense);
+    $('acct-trip-expenses').textContent = money(summary.totalTripExpenses);
+    $('acct-levies').textContent = money(summary.totalLoadLevyPaid);
+    $('acct-discounts').textContent = summary.totalDiscountsGiven > 0 ? '−' + money(summary.totalDiscountsGiven) : '—';
   }
 
   loadInitialData();

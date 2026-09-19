@@ -1,0 +1,38 @@
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Accounting</h1>
+    <p class="page-sub" id="acct-sub">Income and expenses, derived automatically from trips as they're saved.</p>
+  </div>
+</div>
+
+<div class="form-grid">
+  <div class="card stat-card">
+    <h3>Income</h3>
+    <div class="stat-value" id="acct-income">-</div>
+  </div>
+  <div class="card stat-card">
+    <h3>Expenses</h3>
+    <div class="stat-value" id="acct-expenses">-</div>
+  </div>
+  <div class="card stat-card">
+    <h3>Net Profit</h3>
+    <div class="stat-value" id="acct-net">-</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Expense breakdown</h3>
+  <dl class="breakdown-list">
+    <dt>Fuel</dt><dd id="acct-fuel">-</dd>
+    <dt>Trip expenses (toll + ZRP + VID + other)</dt><dd id="acct-trip-expenses">-</dd>
+    <dt>Load levies paid to bringers</dt><dd id="acct-levies">-</dd>
+    <dt class="subtle">Discounts given (already reflected in income)</dt><dd id="acct-discounts" class="subtle">-</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h3>Ledger</h3>
+  <div class="table-wrap" id="acct-ledger-wrap">
+    <div class="empty-state">Loading&hellip;</div>
+  </div>
+</div>

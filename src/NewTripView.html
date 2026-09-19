@@ -9,8 +9,16 @@
   <form id="trip-form">
     <div class="form-grid">
       <div class="field">
-        <label for="trip-client">Client</label>
-        <select id="trip-client" required></select>
+        <label for="trip-client-name">
+          Client name
+          <span class="hint" id="trip-client-match-hint">Type a name &mdash; matches an existing client, or adds a new one</span>
+        </label>
+        <input id="trip-client-name" type="text" list="trip-client-datalist" autocomplete="off" required>
+        <datalist id="trip-client-datalist"></datalist>
+      </div>
+      <div class="field">
+        <label for="trip-client-phone">Client phone</label>
+        <input id="trip-client-phone" type="text">
       </div>
       <div class="field">
         <label for="trip-destination">Destination</label>
