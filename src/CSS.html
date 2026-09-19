@@ -279,15 +279,17 @@
   .badge.ok { background: var(--ok-weak); color: var(--ok); }
   .badge.neutral { background: var(--ink-8); color: var(--ink-4); }
 
-  .stat-card h3 { margin-bottom: 6px; }
   .stat-value { font-size: var(--fs-2xl); font-weight: 700; color: var(--ink-0); font-variant-numeric: tabular-nums; }
   .stat-value.positive { color: var(--ok); }
   .stat-value.negative { color: var(--danger); }
   .stat-caption { margin-top: 4px; font-size: var(--fs-sm); color: var(--ink-4); }
 
-  /* ---------- Dashboard hero ---------- */
+  /* ---------- Hero stat card: one dominant figure + quieter supporting
+     stats, used wherever a screen has one headline number (Dashboard's
+     today's net profit, Accounting's net profit) instead of co-equal
+     stat cards competing for attention ---------- */
 
-  .dash-hero {
+  .hero-card {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -295,9 +297,9 @@
     padding: 22px 24px;
   }
 
-  .dash-hero-main { min-width: 180px; }
+  .hero-card-main { min-width: 180px; }
 
-  .dash-hero-value {
+  .hero-figure {
     font-size: 42px;
     font-weight: 700;
     line-height: 1.05;
@@ -305,29 +307,29 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .dash-hero-value.positive { color: var(--ok); }
-  .dash-hero-value.negative { color: var(--danger); }
+  .hero-figure.positive { color: var(--ok); }
+  .hero-figure.negative { color: var(--danger); }
 
-  .dash-hero-label { margin-top: 6px; font-size: var(--fs-sm); color: var(--ink-4); }
+  .hero-caption { margin-top: 6px; font-size: var(--fs-sm); color: var(--ink-4); }
 
-  .dash-hero-side {
+  .hero-card-side {
     display: flex;
     gap: 28px;
     padding-left: 28px;
     border-left: 1px solid var(--line);
   }
 
-  .dash-hero-stat-value {
+  .hero-side-value {
     font-size: var(--fs-xl);
     font-weight: 700;
     color: var(--ink-1);
     font-variant-numeric: tabular-nums;
   }
 
-  .dash-hero-stat-label { margin-top: 2px; font-size: var(--fs-xs); color: var(--ink-4); }
+  .hero-side-label { margin-top: 2px; font-size: var(--fs-xs); color: var(--ink-4); }
 
   @media (max-width: 560px) {
-    .dash-hero-side {
+    .hero-card-side {
       padding-left: 0;
       border-left: none;
       border-top: 1px solid var(--line);

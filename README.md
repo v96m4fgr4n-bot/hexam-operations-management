@@ -42,11 +42,13 @@ spreadsheet.
 - **Clients** / **Load Bringers** — manage records created via New Trip
   (edit, deactivate/reactivate); Load Bringers also shows a running
   loads-brought/total-paid tally per person.
-- **Accounting** — income/expense roll-up (trip-derived + manually-recorded
-  business expenses, category breakdown) and a color-coded per-trip ledger,
-  derived live from Trips + Expenses. "+ Add expense" (a popup) records
-  one-off business costs (repairs, insurance, salaries, etc. — see
-  Expenses below).
+- **Accounting** — leads with net profit as a hero figure (color-coded
+  green/red), income and expenses as smaller supporting stats beside it —
+  same hero-card treatment as Dashboard, not three co-equal cards — then
+  an expense breakdown, category breakdown, and a color-coded per-trip
+  ledger, derived live from Trips + Expenses. "+ Add expense" (a popup)
+  records one-off business costs (repairs, insurance, salaries, etc. —
+  see Expenses below).
 - **Trends** — 14-day revenue/profit and trip-volume charts, top clients
   by revenue, top load bringers by loads brought, and top drivers by trips
   completed (only trips with a driver assigned on New Trip count).

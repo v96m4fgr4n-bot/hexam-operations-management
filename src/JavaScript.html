@@ -179,7 +179,7 @@
 
     $('dash-today-revenue').textContent = money(s.todayRevenue);
     $('dash-today-profit').textContent = money(s.todayProfit);
-    $('dash-today-profit').className = 'dash-hero-value ' + (s.todayProfit >= 0 ? 'positive' : 'negative');
+    $('dash-today-profit').className = 'hero-figure ' + (s.todayProfit >= 0 ? 'positive' : 'negative');
     $('dash-today-trips').textContent = s.todayTripCount;
 
     $('dash-month-revenue').textContent = money(s.monthRevenue);
@@ -764,6 +764,7 @@
   function loadAccounting() {
     google.script.run.withSuccessHandler(renderAccountingSummary).withFailureHandler(function (err) {
       $('acct-sub').textContent = err.message || String(err);
+      $('acct-hero').removeAttribute('aria-busy');
     }).getAccountingSummary();
 
     loadExpenseCategories_();
@@ -804,6 +805,7 @@
     netEl.textContent = money(summary.netProfit);
     netEl.classList.remove('positive', 'negative');
     netEl.classList.add(summary.netProfit >= 0 ? 'positive' : 'negative');
+    $('acct-hero').removeAttribute('aria-busy');
 
     $('acct-fuel').textContent = money(summary.totalFuelExpense);
     $('acct-trip-expenses').textContent = money(summary.totalTripExpenses);
