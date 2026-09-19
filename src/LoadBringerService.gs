@@ -104,6 +104,25 @@ function reactivateLoadBringer(loadBringerId) {
 }
 
 /**
+ * Resolves a freehand name typed on the New Trip screen to a load bringer -
+ * reusing an existing active bringer on an exact (case-insensitive) name
+ * match, or creating a new one. Mirrors findOrCreateClient_ in
+ * ClientService.gs. Only called from saveTrip, never from the quote preview
+ * (computeTripQuote_ works off the raw typed name so previewing a trip
+ * never creates a bringer record as a side effect).
+ */
+function findOrCreateLoadBringer_(name) {
+  name = validateNonEmptyString_(name, 'Load bringer name');
+
+  var existing = getLoadBringers(false).filter(function (b) {
+    return b.name.trim().toLowerCase() === name.trim().toLowerCase();
+  })[0];
+  if (existing) return existing;
+
+  return addLoadBringer({ name: name }).loadBringer;
+}
+
+/**
  * Client-callable: every load bringer (active and inactive) with a running
  * tally of loads brought and total levy paid, derived from Trips. Load
  * bringers are paid on the spot per load, not batched - this is a

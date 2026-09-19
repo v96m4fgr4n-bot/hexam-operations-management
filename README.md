@@ -1,22 +1,42 @@
 # hexam-operations-management
 
 Hexam Bricks operations management — a standalone Google Apps Script web
-app for quoting delivery trips. Not bound to a spreadsheet as a container;
-it resolves its backing Google Sheet by ID (see `Utils.gs`).
+app covering trip quoting, accounting, and fleet/driver tracking. Not
+bound to a spreadsheet as a container; it resolves its backing Google
+Sheet by ID (see `Utils.gs`).
 
-This is a deliberately narrow MVP: trip quoting plus the minimum
-supporting structure (clients, settings, history) needed to make it usable
-day-to-day. Fleet/driver management, invoicing, dispatch, and reporting/
-analytics are out of scope for this build. Distance is currently entered
-manually; Google Maps-based distance lookup is planned but not yet wired
-in (needs a Maps Platform API key with billing enabled, plus a fixed
-origin point to measure from).
+Started as a narrow trip-quoting MVP and has grown by direct request into
+a broader ops tool: accounting, a dashboard, trend charts, and fleet/driver
+management are all now in scope (see "Explicitly out of scope" for what
+still isn't). Distance is currently entered manually; Google Maps-based
+distance lookup is planned but not yet wired in (needs a Maps Platform API
+key with billing enabled, plus a fixed origin point to measure from).
 
 **Note:** this repo also contains an entirely separate, unrelated system —
 "Hexam Express Trip Tracker" — which handles live driver/delivery
 execution (GPS + odometer-verified deliveries, payment settlement). That
 system is not part of this project; it has its own Apps Script project and
 spreadsheet.
+
+## Screens
+
+- **Dashboard** (landing screen) — today/month revenue, profit, and trip
+  counts, average quote value, active client/bringer counts, recent trips.
+- **New Trip** — quote a trip; client and load bringer are both typed
+  freehand (see below), with a live client-side cost preview.
+- **Trip History** — every saved trip, newest first.
+- **Clients** / **Load Bringers** — manage records created via New Trip
+  (edit, deactivate/reactivate); Load Bringers also shows a running
+  loads-brought/total-paid tally per person.
+- **Accounting** — income/expense roll-up and per-trip ledger, derived
+  live from Trips.
+- **Trends** — 14-day revenue/profit and trip-volume charts, top clients
+  by revenue, top load bringers by loads brought.
+- **Fleet** — trucks, trailers, roadworthy/service due dates with
+  expired/due-soon badges, status (Active / In Repair / Offline), and
+  driver-to-truck assignment.
+- **Settings** — fuel price/consumption, default trip expenses, margin,
+  load levy, currency symbol.
 
 ## Quote formula
 
@@ -31,8 +51,8 @@ fuel cost                 = round-trip distance x fuel rate per km
 trip expenses              = toll fee + ZRP fee + VID fee (+ optional other fee)
 subtotal                  = fuel cost + trip expenses
 margin amount              = subtotal x (company margin % / 100)
-load levy                  = Settings' load levy amount, IF a load bringer is
-                            selected for this trip, else 0
+load levy                  = Settings' load levy amount, IF a load bringer
+                            name was typed for this trip, else 0
 total before discount      = subtotal + margin amount + load levy
 quote total                = total before discount − discount amount
 ```
@@ -40,10 +60,18 @@ quote total                = total before discount − discount amount
 Toll/ZRP/VID fees default to values in **Settings** but can be overridden
 per trip. Every amount is rounded to cents at each stage. The full quote
 is always recomputed server-side from the raw inputs (client, distance,
-fee overrides, load bringer, discount) at save time, reading fuel price/
-consumption/margin/load levy fresh from Settings — a live preview updates
-as you type client-side, but that preview is never trusted as the value
-that gets written to the record.
+fee overrides, load bringer name, discount) at save time, reading fuel
+price/consumption/margin/load levy fresh from Settings — a live preview
+updates as you type client-side, but that preview is never trusted as the
+value that gets written to the record, and never creates a client or load
+bringer record as a side effect (only an actual save does).
+
+**Client & load bringer entry**: neither is picked from a dropdown. Both
+are typed freehand on New Trip (with a datalist of existing names for
+quick reuse); `findOrCreateClient_` / `findOrCreateLoadBringer_` reuse an
+exact case-insensitive name match among active records or create a new
+one when the trip is saved. Client name is required, load bringer is
+optional — leave it blank when no one referred the load.
 
 **Load levy**: when a trip's load was referred to Hexam by someone (a
 "load bringer"), the configured levy is added to *that client's* total —
@@ -70,25 +98,34 @@ Settings screen):
 | `DEFAULT_ZRP_FEE` | 0 | Default ZRP fee, overridable per trip |
 | `DEFAULT_VID_FEE` | 0 | Default VID fee, overridable per trip |
 | `COMPANY_MARGIN_PERCENT` | 15 | Margin applied to (fuel cost + trip expenses) to produce the quote |
-| `LOAD_LEVY_AMOUNT` | 10 | Paid to whoever brought the load; added to the client's total when a load bringer is selected |
+| `LOAD_LEVY_AMOUNT` | 10 | Paid to whoever brought the load; added to the client's total when a load bringer is named |
 | `CURRENCY_SYMBOL` | `$` | Symbol shown next to amounts (display only) |
 
 **Clients**: ClientId, ClientName, ContactPerson, Phone, Email, Address,
-Active, CreatedAt. There's no client picker on the New Trip screen — name
-and phone are typed freehand (with a datalist of existing names for quick
-reuse), and `findOrCreateClient_` reuses an exact case-insensitive name
-match among active clients or creates a new one when the trip is saved.
-The Clients screen is for managing existing records (edit, fill in
-contact/email/address, deactivate/reactivate) rather than for entry.
-Clients are soft-deleted (Active flag) rather than removed, since
+Active, CreatedAt. Soft-deleted (Active flag) rather than removed, since
 historical trips reference them by ID and must keep working even if a
 client goes inactive; quoting under a name that was deliberately
 deactivated creates a fresh client rather than silently reactivating it.
 
 **LoadBringers**: LoadBringerId, Name, Phone, Active, CreatedAt. Same
-soft-delete pattern as Clients. Selecting one on a trip (optional) bakes
-the load levy into that trip's total, paid to them on the spot;
-`getLoadBringerSummary()` groups by bringer for a running paid-total record.
+soft-delete pattern as Clients. `getLoadBringerSummary()` groups by
+bringer for a running paid-total record.
+
+**Trucks**: TruckId, RegNumber, RoadworthyExpiry, NextServiceDue, Status,
+CreatedAt. Status is one of `Active` / `In Repair` / `Offline`. No driver
+field — `getTrucks()` derives the assigned driver (if any) by looking for
+the Driver record whose AssignedTruckId matches, so the assignment always
+has a single source of truth.
+
+**Trailers**: TrailerId, RegNumber, RoadworthyExpiry, NextServiceDue,
+Status, CreatedAt. Same shape as Trucks, tracked as a separate fleet asset
+(no pairing to a specific truck, since trailers can be swapped between
+trucks).
+
+**Drivers**: DriverId, Name, Phone, AssignedTruckId, Active, CreatedAt.
+Soft-deleted like Clients/LoadBringers. Assigning a truck already assigned
+to a different active driver is rejected rather than silently allowing two
+drivers on one truck.
 
 **Trips** (append-only log written by the web app): TripId, TripDate,
 ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,
@@ -113,26 +150,29 @@ src/
   Utils.gs               Spreadsheet resolution, validation, rounding, currency formatting
   Setup.gs                initializeSpreadsheet(): sheet + Settings bootstrap, migration-safe
   SettingsService.gs      getSettings / updateSettings
-  ClientService.gs        getClients / getClient / addClient / updateClient /
-                          deactivateClient / reactivateClient
-  LoadBringerService.gs    getLoadBringers / getLoadBringer / addLoadBringer /
-                          updateLoadBringer / deactivateLoadBringer /
-                          reactivateLoadBringer / getLoadBringerSummary
+  ClientService.gs        getClients / addClient / updateClient / (de)reactivateClient /
+                          findOrCreateClient_
+  LoadBringerService.gs    getLoadBringers / addLoadBringer / updateLoadBringer /
+                          (de)reactivateLoadBringer / getLoadBringerSummary /
+                          findOrCreateLoadBringer_
   TripService.gs          computeTripQuote_ / getTripQuote / saveTrip / getTrips
   AccountingService.gs    getAccountingSummary(): income/expense roll-up from Trips
   DashboardService.gs      getDashboardSummary(): today/month KPIs, derived live
   TrendsService.gs         getTrendsData(): 14-day trend + top clients/bringers
+  FleetService.gs          Trucks/Trailers/Drivers CRUD, dateStatus_() for
+                          roadworthy/service due badges
   Index.html               Sidebar+topbar shell (mobile-collapsible)
   CSS.html                 Hexham Bricks-branded styles
   JavaScript.html          Client-side logic: nav, forms, live quote preview,
                           inline SVG charts, API calls
   DashboardView.html      Landing screen: today/month KPIs + recent trips
-  NewTripView.html         New Trip screen (client entered freehand)
+  NewTripView.html         New Trip screen (client & load bringer entered freehand)
   TripHistoryView.html     Trip History screen
   ClientsView.html          Clients screen (edit/deactivate/reactivate)
   LoadBringersView.html    Load Bringers screen (add/edit/deactivate/reactivate + paid tally)
   AccountingView.html      Accounting screen (income/expense summary + ledger)
   TrendsView.html          Trends screen (revenue/profit/trips charts, top clients/bringers)
+  FleetView.html           Fleet screen (trucks/trailers/drivers)
   SettingsView.html        Settings screen
 ```
 
@@ -156,10 +196,13 @@ the app is broken.
 
 ## Explicitly out of scope
 
-Fleet/vehicle management, driver management, brick inventory, invoicing,
-dispatch/scheduling, reporting/analytics, multi-currency conversion, and
+Brick inventory, invoicing/billing, dispatch/scheduling (assigning a
+specific truck+driver to an upcoming trip), multi-currency conversion, and
 user accounts/roles beyond Workspace-domain access. Automated distance
 calculation via Google Maps is planned (needs a Maps Platform API key with
 billing enabled, and a fixed origin address) but not yet implemented —
-`oneWayDistanceKm` is a manual input for now. None of the out-of-scope
-items were requested for this build.
+`oneWayDistanceKm` is a manual input for now. The Load Bringers/Fleet
+"totals" and "due" badges are read-only derived views, not workflows —
+there's no "mark levy as paid" or "mark service done" action; the
+underlying date/record is edited directly to update them. None of the
+out-of-scope items were requested for this build.

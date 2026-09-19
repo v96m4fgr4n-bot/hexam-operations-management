@@ -30,7 +30,7 @@
  * anything.
  *
  * input: { oneWayDistanceKm, tollFee, zrpFee, vidFee, otherFeesAmount,
- *          loadBringerId, discountAmount, discountReason }
+ *          loadBringerName, discountAmount, discountReason }
  */
 function computeTripQuote_(input) {
   input = input || {};
@@ -53,17 +53,11 @@ function computeTripQuote_(input) {
   var subtotal = round2_(fuelCost + tripExpenses);
   var marginAmount = round2_(subtotal * settings.companyMarginPercent / 100);
 
-  var loadBringerId = String(input.loadBringerId || '').trim();
-  var loadBringerName = '';
-  var loadLevyAmount = 0;
-  if (loadBringerId) {
-    var loadBringer = getLoadBringer(loadBringerId);
-    if (!loadBringer || !loadBringer.active) {
-      throw new Error('Selected load bringer is not valid or is no longer active.');
-    }
-    loadBringerName = loadBringer.name;
-    loadLevyAmount = settings.loadLevyAmount;
-  }
+  // Freehand-typed, like the client - resolved to an actual record (and
+  // created if new) only at save time, never here, so previewing a quote
+  // can't create a load bringer as a side effect.
+  var loadBringerName = String(input.loadBringerName || '').trim();
+  var loadLevyAmount = loadBringerName ? settings.loadLevyAmount : 0;
 
   var totalBeforeDiscount = round2_(subtotal + marginAmount + loadLevyAmount);
 
@@ -90,7 +84,6 @@ function computeTripQuote_(input) {
     subtotal: subtotal,
     marginPercent: settings.companyMarginPercent,
     marginAmount: marginAmount,
-    loadBringerId: loadBringerId,
     loadBringerName: loadBringerName,
     loadLevyAmount: loadLevyAmount,
     totalBeforeDiscount: totalBeforeDiscount,
@@ -110,10 +103,13 @@ function getTripQuote(input) {
  * Validates, computes, and persists a trip record. The client is entered
  * freehand (name + phone) rather than picked from a pre-existing list -
  * findOrCreateClient_ reuses a matching active client or creates a new one.
+ * The load bringer name is freehand too (optional) - findOrCreateLoadBringer_
+ * resolves/creates it the same way, but only once the quote is computed, so
+ * a preview never creates either record as a side effect.
  *
  * tripInput: { clientName, clientPhone, destination, oneWayDistanceKm,
  *              tollFee, zrpFee, vidFee, otherFeesDescription, otherFeesAmount,
- *              loadBringerId, discountAmount, discountReason, notes }
+ *              loadBringerName, discountAmount, discountReason, notes }
  */
 function saveTrip(tripInput) {
   tripInput = tripInput || {};
@@ -126,6 +122,13 @@ function saveTrip(tripInput) {
 
   var quote = computeTripQuote_(tripInput);
 
+  var loadBringerId = '';
+  if (quote.loadBringerName) {
+    var bringer = findOrCreateLoadBringer_(quote.loadBringerName);
+    loadBringerId = bringer.id;
+    quote.loadBringerName = bringer.name;
+  }
+
   var sheet = getSpreadsheet_().getSheetByName('Trips');
   var id = generateId_('trip');
   var now = new Date();
@@ -136,7 +139,7 @@ function saveTrip(tripInput) {
     quote.fuelPricePerLitre, quote.fuelConsumptionKmPerL, quote.fuelRatePerKm, quote.fuelCost,
     quote.tollFee, quote.zrpFee, quote.vidFee, otherFeesDescription, quote.otherFeesAmount, quote.tripExpenses,
     quote.subtotal, quote.marginPercent, quote.marginAmount,
-    quote.loadBringerId, quote.loadBringerName, quote.loadLevyAmount,
+    loadBringerId, quote.loadBringerName, quote.loadLevyAmount,
     quote.totalBeforeDiscount, quote.discountAmount, quote.discountReason, quote.totalCost,
     notes, now
   ]);
@@ -152,7 +155,7 @@ function saveTrip(tripInput) {
       OtherFeesDescription: otherFeesDescription, OtherFeesAmount: quote.otherFeesAmount,
       TripExpenses: quote.tripExpenses, Subtotal: quote.subtotal,
       MarginPercent: quote.marginPercent, MarginAmount: quote.marginAmount,
-      LoadBringerId: quote.loadBringerId, LoadBringerName: quote.loadBringerName, LoadLevyAmount: quote.loadLevyAmount,
+      LoadBringerId: loadBringerId, LoadBringerName: quote.loadBringerName, LoadLevyAmount: quote.loadLevyAmount,
       TotalBeforeDiscount: quote.totalBeforeDiscount, DiscountAmount: quote.discountAmount,
       DiscountReason: quote.discountReason, TotalCost: quote.totalCost,
       Notes: notes, CreatedAt: now

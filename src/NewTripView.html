@@ -63,13 +63,12 @@
     <h3 style="margin-top:20px;">Load Bringer (optional)</h3>
     <div class="form-grid">
       <div class="field">
-        <label for="trip-load-bringer">
+        <label for="trip-load-bringer-name">
           Referred by
-          <span class="hint">If this load came from someone who referred it to us, the load levy is added to the client's total and paid out to them</span>
+          <span class="hint">Leave blank if no one referred this load. Type a name &mdash; matches an existing bringer, or adds a new one &mdash; and the load levy is added to the client's total and paid out to them</span>
         </label>
-        <select id="trip-load-bringer">
-          <option value="">None</option>
-        </select>
+        <input id="trip-load-bringer-name" type="text" list="trip-load-bringer-datalist" autocomplete="off">
+        <datalist id="trip-load-bringer-datalist"></datalist>
       </div>
     </div>
 
