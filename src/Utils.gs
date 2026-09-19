@@ -4,9 +4,11 @@
 
 var SPREADSHEET_ID_PROPERTY = 'SPREADSHEET_ID';
 
-// Pre-wired to the spreadsheet created for this deployment. Overridden per-project
-// by setting a SPREADSHEET_ID script property (Project Settings > Script Properties).
-var DEFAULT_SPREADSHEET_ID = '1PhRwDCdoryF8CvwIq67tMqPtwoXR-vtjvbXJAw-Z4pKvy96oX46BRUVp';
+// Set this to a Google Sheets spreadsheet ID to pre-wire the app to a specific
+// sheet on first run, instead of auto-creating one. Leave blank to auto-create.
+// Can also be set per-deployment via a SPREADSHEET_ID script property, which
+// takes priority over this constant (Project Settings > Script Properties).
+var DEFAULT_SPREADSHEET_ID = '1Opv1xha3S5EvYPYmQDbRr90bEGAvBqbebvfJuvtLGKA';
 
 /**
  * Returns the Spreadsheet backing this app, resolved via the script property

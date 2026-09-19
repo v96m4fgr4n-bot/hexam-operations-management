@@ -66,15 +66,14 @@ account:
    dropdown (top toolbar) and click **Run**. Approve the Google Sheets/Drive
    permission prompt the first time.
 
-   `src/Utils.gs` has a `DEFAULT_SPREADSHEET_ID` pre-set to a spreadsheet the
-   user already created for this deployment — `initializeSpreadsheet` opens
-   that sheet and adds the `Settings`/`Clients`/`Trips` tabs to it, rather
-   than creating a brand-new spreadsheet (it only creates a new one if that
-   default ID can't be opened, e.g. it's ever deleted or unshared). Check
-   **View > Logs** (or **Executions**) for the spreadsheet URL it logs —
-   bookmark it, since that's where all clients/trips/settings live.
+   `src/Utils.gs` has `DEFAULT_SPREADSHEET_ID` pre-set to a spreadsheet
+   already created for this deployment — `initializeSpreadsheet` opens that
+   sheet and adds the `Settings`/`Clients`/`Trips` tabs to it, rather than
+   creating a brand-new spreadsheet (it only creates a new one if that ID
+   can't be opened, e.g. it's ever deleted or unshared). Check **View >
+   Logs** (or **Executions**) to confirm the spreadsheet URL it used.
 
-   To point the app at a *different* sheet instead (e.g. for a separate
+   To point the app at a *different* sheet instead (e.g. a separate
    test/staging copy), open **Project Settings > Script Properties** and add
    a `SPREADSHEET_ID` property with that sheet's ID — it takes priority over
    the default.
