@@ -40,6 +40,9 @@ spreadsheet.
 - **Audit Log** — every create/update/deactivate/reactivate across
   Clients, Load Bringers, Trips, Fleet, Expenses, and Settings, with who
   (signed-in user email) and when.
+- **Invoice** — a "Download Invoice" button on New Trip (right after
+  saving) and on each Trip History row generates a branded PDF for that
+  trip: logo, invoice number, bill-to, itemized cost breakdown, total.
 - **Settings** — fuel price/consumption, default trip expenses, margin,
   load levy, brick price per 1000, currency symbol.
 
@@ -202,6 +205,10 @@ src/
                           getExpenses / addExpense / deleteExpense
   AuditLogService.gs       logAudit_() / getAuditLog(): who/what/when across
                           every mutating function
+  InvoiceService.gs        downloadTripInvoice(): branded PDF invoice, built
+                          via DocumentApp (no template file to maintain) and
+                          exported/trashed on the fly; brandedDocHeader_() is
+                          factored out for future branded documents/reports
   Index.html               Sidebar+topbar shell (mobile-collapsible)
   CSS.html                 Hexham Bricks-branded styles
   JavaScript.html          Client-side logic: nav, forms, live quote preview,
@@ -237,15 +244,24 @@ instead of a normal permission prompt, it usually means their Google
 account isn't recognized as a member of that Workspace domain, not that
 the app is broken.
 
+Invoice generation (`InvoiceService.gs`) uses `DocumentApp`, `DriveApp`,
+and `UrlFetchApp` (to fetch the logo) - capabilities the earlier, narrower
+build didn't need. The first deploy/use after adding this may prompt
+whoever owns the script to re-authorize the broader scopes Apps Script
+auto-detects for those services.
+
 ## Explicitly out of scope
 
-Brick inventory, invoicing/billing, dispatch/scheduling (assigning a
-specific truck+driver to an upcoming trip), multi-currency conversion, and
-user accounts/roles beyond Workspace-domain access. Automated distance
-calculation via Google Maps is planned (needs a Maps Platform API key with
-billing enabled, and a fixed origin address) but not yet implemented —
-`oneWayDistanceKm` is a manual input for now. The Load Bringers/Fleet
-"totals" and "due" badges are read-only derived views, not workflows —
-there's no "mark levy as paid" or "mark service done" action; the
-underlying date/record is edited directly to update them. None of the
+Brick inventory, dispatch/scheduling (assigning a specific truck+driver to
+an upcoming trip), multi-currency conversion, and user accounts/roles
+beyond Workspace-domain access. Automated distance calculation via Google
+Maps is planned (needs a Maps Platform API key with billing enabled, and a
+fixed origin address) but not yet implemented — `oneWayDistanceKm` is a
+manual input for now. The Load Bringers/Fleet "totals" and "due" badges
+are read-only derived views, not workflows — there's no "mark levy as
+paid" or "mark service done" action; the underlying date/record is edited
+directly to update them. Invoice **generation** (a branded PDF, per trip)
+is built, but there's no billing/AR **workflow** on top of it — no invoice
+sent/paid/overdue status, no numbering sequence beyond the derived
+`INV-<date>-<id>` scheme, and no accounts-receivable tracking. None of the
 out-of-scope items were requested for this build.
