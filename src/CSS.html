@@ -289,6 +289,16 @@
   .breakdown-list dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
   .breakdown-list .subtle { color: var(--ink-4); font-size: var(--fs-sm); }
 
+  .chart-legend { display: flex; gap: 16px; margin-bottom: 10px; font-size: var(--fs-xs); color: var(--ink-4); }
+  .chart-legend .swatch {
+    display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    margin-right: 4px; vertical-align: middle;
+  }
+  .chart-svg { width: 100%; height: auto; display: block; }
+
+  .badge.warn { background: var(--warn-weak); color: var(--warn); }
+  .badge.danger { background: var(--danger-weak); color: var(--danger); }
+
   .cost-summary {
     background: var(--accent-weak);
     border-radius: var(--radius);

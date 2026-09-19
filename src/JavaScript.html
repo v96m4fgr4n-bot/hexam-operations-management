@@ -35,10 +35,12 @@
     });
     closeSidebar();
 
+    if (viewName === 'dashboard') loadDashboard();
     if (viewName === 'trip-history') loadTripHistory();
     if (viewName === 'clients') loadClients();
     if (viewName === 'load-bringers') loadLoadBringers();
     if (viewName === 'accounting') loadAccounting();
+    if (viewName === 'trends') loadTrends();
   }
 
   function openSidebar() {
@@ -75,6 +77,7 @@
 
     loadClientsForTripForm();
     loadLoadBringersForTripForm();
+    loadDashboard();
   }
 
   /* ---------- Settings ---------- */
@@ -132,6 +135,45 @@
       loadLevyAmount: Number($('settings-load-levy').value)
     });
   });
+
+  /* ---------- Dashboard ---------- */
+
+  function loadDashboard() {
+    google.script.run.withSuccessHandler(renderDashboard).withFailureHandler(function (err) {
+      $('dash-sub').textContent = err.message || String(err);
+    }).getDashboardSummary();
+  }
+
+  function renderDashboard(s) {
+    $('dash-sub').textContent = 'Live figures, updated automatically as trips are saved.';
+
+    $('dash-today-revenue').textContent = money(s.todayRevenue);
+    $('dash-today-profit').textContent = money(s.todayProfit);
+    $('dash-today-trips').textContent = s.todayTripCount;
+
+    $('dash-month-revenue').textContent = money(s.monthRevenue);
+    $('dash-month-profit').textContent = money(s.monthProfit);
+    $('dash-month-trips').textContent = s.monthTripCount;
+
+    $('dash-avg-quote').textContent = money(s.averageQuoteValue);
+    $('dash-active-clients').textContent = s.activeClientCount;
+    $('dash-active-bringers').textContent = s.activeLoadBringerCount;
+
+    var wrap = $('dash-recent-wrap');
+    if (!s.recentTrips.length) {
+      wrap.innerHTML = '<div class="empty-state">No trips yet.</div>';
+      return;
+    }
+    var rows = s.recentTrips.map(function (t) {
+      return '<tr>' +
+        '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
+        '<td>' + escapeHtml(t.clientName) + '</td>' +
+        '<td>' + escapeHtml(t.destination) + '</td>' +
+        '<td><strong>' + money(t.totalCost) + '</strong></td>' +
+        '</tr>';
+    }).join('');
+    wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Quote</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
 
   /* ---------- Clients ---------- */
 
@@ -595,6 +637,108 @@
     $('acct-trip-expenses').textContent = money(summary.totalTripExpenses);
     $('acct-levies').textContent = money(summary.totalLoadLevyPaid);
     $('acct-discounts').textContent = summary.totalDiscountsGiven > 0 ? '−' + money(summary.totalDiscountsGiven) : '—';
+  }
+
+  /* ---------- Trends ---------- */
+
+  function loadTrends() {
+    var ids = ['trend-revenue-chart', 'trend-trips-chart', 'trend-clients-chart', 'trend-bringers-chart'];
+    google.script.run.withSuccessHandler(function (data) {
+      $('trend-revenue-chart').innerHTML = svgDualBars_(data.dailyTrend, 'revenue', 'profit');
+      $('trend-trips-chart').innerHTML = svgSingleBars_(data.dailyTrend, 'tripCount', 'var(--brand-blue)', function (v) { return String(v); });
+      $('trend-clients-chart').innerHTML = data.topClients.length
+        ? svgRankedBars_(data.topClients, 'revenue', 'name', money, 'var(--brand-blue)')
+        : '<div class="empty-state">No trips yet.</div>';
+      $('trend-bringers-chart').innerHTML = data.topLoadBringers.length
+        ? svgRankedBars_(data.topLoadBringers, 'tripCount', 'name', function (v) { return v + (v === 1 ? ' load' : ' loads'); }, 'var(--brand-orange)')
+        : '<div class="empty-state">No load bringers recorded yet.</div>';
+    }).withFailureHandler(function (err) {
+      ids.forEach(function (id) { $(id).innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>'; });
+    }).getTrendsData();
+  }
+
+  /** Two bars per day (revenue, profit), rounded corners, a thin stroke so the
+   *  shape reads even at low fill-vs-background contrast, and a value label
+   *  on the most recent day only. */
+  function svgDualBars_(days, keyA, keyB) {
+    var w = 700, barAreaH = 150, h = barAreaH + 26;
+    var maxVal = Math.max(1, Math.max.apply(null, days.map(function (d) { return Math.max(d[keyA], d[keyB]); })));
+    var slotW = w / days.length;
+    var barW = Math.max(4, Math.min(14, slotW / 2 - 3));
+
+    var svg = '<svg class="chart-svg" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Revenue and profit, last 14 days">';
+    svg += '<line x1="0" y1="' + barAreaH + '" x2="' + w + '" y2="' + barAreaH + '" stroke="var(--line-strong)" stroke-width="1"/>';
+
+    days.forEach(function (d, i) {
+      var cx = i * slotW + slotW / 2;
+      var aH = Math.max(1, Math.round((d[keyA] / maxVal) * (barAreaH - 14)));
+      var bH = Math.max(1, Math.round((d[keyB] / maxVal) * (barAreaH - 14)));
+      var isLast = i === days.length - 1;
+
+      svg += barRect_(cx - barW - 1, barAreaH - aH, barW, aH, 'var(--brand-blue)', d.label + ': ' + money(d[keyA]) + ' revenue');
+      svg += barRect_(cx + 1, barAreaH - bH, barW, bH, 'var(--brand-orange)', d.label + ': ' + money(d[keyB]) + ' profit');
+
+      if (isLast) {
+        svg += svgText_(cx, barAreaH - Math.max(aH, bH) - 6, money(d[keyA]), 'var(--ink-2)');
+      }
+      if (i % 2 === 0 || isLast) {
+        svg += svgText_(cx, barAreaH + 16, d.label, 'var(--ink-4)');
+      }
+    });
+
+    return svg + '</svg>';
+  }
+
+  /** One bar per day. */
+  function svgSingleBars_(days, key, color, formatFn) {
+    var w = 700, barAreaH = 120, h = barAreaH + 26;
+    var maxVal = Math.max(1, Math.max.apply(null, days.map(function (d) { return d[key]; })));
+    var slotW = w / days.length;
+    var barW = Math.max(6, Math.min(20, slotW - 6));
+
+    var svg = '<svg class="chart-svg" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Daily trend">';
+    svg += '<line x1="0" y1="' + barAreaH + '" x2="' + w + '" y2="' + barAreaH + '" stroke="var(--line-strong)" stroke-width="1"/>';
+
+    days.forEach(function (d, i) {
+      var cx = i * slotW + slotW / 2;
+      var barH = Math.max(1, Math.round((d[key] / maxVal) * (barAreaH - 14)));
+      var isLast = i === days.length - 1;
+
+      svg += barRect_(cx - barW / 2, barAreaH - barH, barW, barH, color, d.label + ': ' + formatFn(d[key]));
+      if (isLast) svg += svgText_(cx, barAreaH - barH - 6, formatFn(d[key]), 'var(--ink-2)');
+      if (i % 2 === 0 || isLast) svg += svgText_(cx, barAreaH + 16, d.label, 'var(--ink-4)');
+    });
+
+    return svg + '</svg>';
+  }
+
+  /** Horizontal ranked bars - label + value always shown directly, since a
+   *  ranked list reads as numbers as much as shape. */
+  function svgRankedBars_(items, valueKey, labelKey, formatFn, color) {
+    var w = 700, rowH = 28, h = items.length * rowH + 8;
+    var maxVal = Math.max(1, Math.max.apply(null, items.map(function (it) { return it[valueKey]; })));
+    var labelW = 170, barAreaW = w - labelW - 70;
+
+    var svg = '<svg class="chart-svg" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Ranked totals">';
+    items.forEach(function (it, i) {
+      var y = i * rowH + 6;
+      var barW = Math.max(2, Math.round((it[valueKey] / maxVal) * barAreaW));
+      svg += '<text x="' + (labelW - 8) + '" y="' + (y + 13) + '" text-anchor="end" font-size="11" fill="var(--ink-1)">' + escapeHtml(it[labelKey]) + '</text>';
+      svg += barRect_(labelW, y, barW, 16, color, it[labelKey] + ': ' + formatFn(it[valueKey]));
+      svg += '<text x="' + (labelW + barW + 6) + '" y="' + (y + 13) + '" font-size="11" fill="var(--ink-2)">' + escapeHtml(formatFn(it[valueKey])) + '</text>';
+    });
+
+    return svg + '</svg>';
+  }
+
+  function barRect_(x, y, w, h, color, titleText) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="2" ' +
+      'fill="' + color + '" stroke="var(--ink-2)" stroke-width="0.5">' +
+      '<title>' + escapeHtml(titleText) + '</title></rect>';
+  }
+
+  function svgText_(x, y, text, color) {
+    return '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-size="9" fill="' + color + '">' + escapeHtml(text) + '</text>';
   }
 
   loadInitialData();

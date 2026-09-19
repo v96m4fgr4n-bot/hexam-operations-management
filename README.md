@@ -120,14 +120,19 @@ src/
                           reactivateLoadBringer / getLoadBringerSummary
   TripService.gs          computeTripQuote_ / getTripQuote / saveTrip / getTrips
   AccountingService.gs    getAccountingSummary(): income/expense roll-up from Trips
+  DashboardService.gs      getDashboardSummary(): today/month KPIs, derived live
+  TrendsService.gs         getTrendsData(): 14-day trend + top clients/bringers
   Index.html               Sidebar+topbar shell (mobile-collapsible)
   CSS.html                 Hexham Bricks-branded styles
-  JavaScript.html          Client-side logic: nav, forms, live quote preview, API calls
+  JavaScript.html          Client-side logic: nav, forms, live quote preview,
+                          inline SVG charts, API calls
+  DashboardView.html      Landing screen: today/month KPIs + recent trips
   NewTripView.html         New Trip screen (client entered freehand)
   TripHistoryView.html     Trip History screen
   ClientsView.html          Clients screen (edit/deactivate/reactivate)
   LoadBringersView.html    Load Bringers screen (add/edit/deactivate/reactivate + paid tally)
   AccountingView.html      Accounting screen (income/expense summary + ledger)
+  TrendsView.html          Trends screen (revenue/profit/trips charts, top clients/bringers)
   SettingsView.html        Settings screen
 ```
 
