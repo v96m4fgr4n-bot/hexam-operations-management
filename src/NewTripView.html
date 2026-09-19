@@ -1,0 +1,67 @@
+<div class="page-head">
+  <div>
+    <h1 class="page-title">New Trip</h1>
+    <p class="page-sub">Cost a delivery trip for a client.</p>
+  </div>
+</div>
+
+<div class="card">
+  <form id="trip-form">
+    <div class="form-grid">
+      <div class="field">
+        <label for="trip-client">Client</label>
+        <select id="trip-client" required></select>
+      </div>
+      <div class="field">
+        <label for="trip-destination">Destination</label>
+        <input id="trip-destination" type="text" placeholder="e.g. Chinhoyi site" required>
+      </div>
+      <div class="field">
+        <label for="trip-distance">One-way distance (km)</label>
+        <input id="trip-distance" type="number" min="0.01" step="0.01" required>
+      </div>
+    </div>
+
+    <h3 style="margin-top:20px;">Fees</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="trip-toll">Toll fee</label>
+        <input id="trip-toll" type="number" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <label for="trip-zrp">ZRP fee</label>
+        <input id="trip-zrp" type="number" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <label for="trip-vid">VID fee</label>
+        <input id="trip-vid" type="number" min="0" step="0.01">
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="trip-other-desc">Other fee description (optional)</label>
+        <input id="trip-other-desc" type="text" placeholder="e.g. weighbridge fee">
+      </div>
+      <div class="field">
+        <label for="trip-other-amount">Other fee amount</label>
+        <input id="trip-other-amount" type="number" min="0" step="0.01" value="0">
+      </div>
+    </div>
+
+    <div class="field full">
+      <label for="trip-notes">Notes (optional)</label>
+      <textarea id="trip-notes"></textarea>
+    </div>
+
+    <div class="cost-summary" id="trip-cost-summary">
+      <div class="line"><span>Round-trip distance</span><span id="cs-distance">-</span></div>
+      <div class="line"><span>Fuel cost</span><span id="cs-fuel">-</span></div>
+      <div class="line"><span>Toll + ZRP + VID + other</span><span id="cs-misc">-</span></div>
+      <div class="line total"><span>Total cost</span><span id="cs-total">-</span></div>
+    </div>
+
+    <button type="submit" class="btn primary" id="trip-submit">Save trip</button>
+    <div class="msg" id="trip-msg"></div>
+  </form>
+</div>
