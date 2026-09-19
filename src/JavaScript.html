@@ -27,9 +27,21 @@
     el.className = 'msg';
   }
 
+  /* ---------- Modals ---------- */
+
+  function openModal(id) { $(id).classList.add('open'); }
+  function closeModal(id) { $(id).classList.remove('open'); }
+
+  document.querySelectorAll('.modal-overlay').forEach(function (overlay) {
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeModal(overlay.id);
+    });
+  });
+
   /* ---------- Sidebar navigation ---------- */
 
   function setView(viewName) {
+    document.querySelectorAll('.modal-overlay.open').forEach(function (m) { closeModal(m.id); });
     document.querySelectorAll('.nav-item').forEach(function (item) {
       item.classList.toggle('active', item.getAttribute('data-view') === viewName);
     });
@@ -82,6 +94,7 @@
 
     loadClientsForTripForm();
     loadLoadBringersForTripForm();
+    loadDriversForTripForm();
     loadDashboard();
   }
 
@@ -440,6 +453,18 @@
 
   /* ---------- New Trip ---------- */
 
+  function loadDriversForTripForm() {
+    google.script.run.withSuccessHandler(function (drivers) {
+      var select = $('trip-driver');
+      var current = select.value;
+      select.innerHTML = '<option value="">No driver assigned</option>' +
+        drivers.map(function (d) { return '<option value="' + escapeHtml(d.id) + '">' + escapeHtml(d.name) + '</option>'; }).join('');
+      select.value = current;
+    }).withFailureHandler(function (err) {
+      showMsg($('trip-msg'), err.message || String(err), true);
+    }).getDrivers(false);
+  }
+
   function prefillTripFeesFromSettings() {
     if (!STATE.settings) return;
     $('trip-toll').value = STATE.settings.defaultTollFee;
@@ -535,9 +560,19 @@
     if (discount > 0) $('cs-discount').textContent = '−' + money(discount);
 
     $('cs-total').textContent = money(total);
+
+    var otherExpenseDesc = $('trip-expense-desc').value.trim();
+    var otherExpenseAmount = otherExpenseDesc ? (Number($('trip-expense-amount').value) || 0) : 0;
+    var noteEl = $('cs-expense-note');
+    if (otherExpenseAmount > 0) {
+      noteEl.textContent = 'Not billed to the client, but this trip’s tracked profit will be reduced by ' + money(otherExpenseAmount) + ' for: ' + otherExpenseDesc;
+      noteEl.className = 'msg warn';
+    } else {
+      noteEl.className = 'msg';
+    }
   }
 
-  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount', 'trip-brick-quantity', 'trip-load-bringer-name', 'trip-discount-amount'].forEach(function (id) {
+  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount', 'trip-brick-quantity', 'trip-expense-desc', 'trip-expense-amount', 'trip-load-bringer-name', 'trip-discount-amount'].forEach(function (id) {
     $(id).addEventListener('input', updateTripPreview);
     $(id).addEventListener('change', updateTripPreview);
   });
@@ -588,7 +623,10 @@
       otherFeesAmount: Number($('trip-other-amount').value) || 0,
       orderType: $('trip-order-type').value,
       brickQuantity: Number($('trip-brick-quantity').value) || 0,
+      otherExpenseDescription: $('trip-expense-desc').value,
+      otherExpenseAmount: Number($('trip-expense-amount').value) || 0,
       loadBringerName: $('trip-load-bringer-name').value,
+      driverId: $('trip-driver').value,
       discountAmount: discountShown ? (Number($('trip-discount-amount').value) || 0) : 0,
       discountReason: discountShown ? $('trip-discount-reason').value : '',
       notes: $('trip-notes').value
@@ -607,28 +645,76 @@
         return;
       }
       var rows = trips.map(function (t) {
+        var net = t.marginAmount + t.brickCost - t.discountAmount - t.otherExpenseAmount;
+        var marginPct = t.totalCost > 0 ? (net / t.totalCost * 100) : 0;
+        var profitBadge = '<span class="badge ' + (net >= 0 ? 'ok' : 'danger') + '">' +
+          (net >= 0 ? '+' + money(net) : '−' + money(Math.abs(net))) + ' (' + marginPct.toFixed(1) + '%)</span>';
+
+        var paymentBadge;
+        if (!(t.amountPaid > 0)) {
+          paymentBadge = '<span class="badge neutral">Not recorded</span>';
+        } else if (t.amountPaid + 0.005 < t.totalCost) {
+          paymentBadge = '<span class="badge warn">' + money(t.amountPaid) + ' partial</span>';
+        } else {
+          paymentBadge = '<span class="badge ok">' + money(t.amountPaid) + ' paid</span>';
+        }
+
         return '<tr>' +
           '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
           '<td>' + escapeHtml(t.clientName) + '</td>' +
           '<td>' + escapeHtml(t.destination) + '</td>' +
+          '<td>' + (t.driverName ? escapeHtml(t.driverName) : '&mdash;') + '</td>' +
           '<td>' + t.roundTripDistanceKm.toFixed(2) + ' km</td>' +
           '<td>' + money(t.fuelCost) + '</td>' +
           '<td>' + money(t.tripExpenses) + '</td>' +
           '<td>' + money(t.marginAmount) + ' (' + t.marginPercent + '%)</td>' +
           '<td>' + (t.loadBringerName ? escapeHtml(t.loadBringerName) + ' (' + money(t.loadLevyAmount) + ')' : '&mdash;') + '</td>' +
+          '<td>' + (t.otherExpenseAmount > 0 ? escapeHtml(t.otherExpenseDescription) + ' (' + money(t.otherExpenseAmount) + ')' : '&mdash;') + '</td>' +
           '<td>' + (t.discountAmount > 0 ? '−' + money(t.discountAmount) : '&mdash;') + '</td>' +
+          '<td>' + profitBadge + '</td>' +
           '<td><strong>' + money(t.totalCost) + '</strong></td>' +
-          '<td><button class="btn sm ghost" data-invoice="' + escapeHtml(t.tripId) + '">Invoice</button></td>' +
+          '<td>' + paymentBadge + '</td>' +
+          '<td>' +
+            '<button class="btn sm ghost" data-invoice="' + escapeHtml(t.tripId) + '">Invoice</button> ' +
+            '<button class="btn sm ghost" data-pay="' + escapeHtml(t.tripId) + '" data-total="' + t.totalCost + '" data-paid="' + t.amountPaid + '">Record payment</button>' +
+          '</td>' +
           '</tr>';
       }).join('');
-      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Round trip</th><th>Fuel</th><th>Expenses</th><th>Margin</th><th>Load bringer (levy)</th><th>Discount</th><th>Quote</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Driver</th><th>Round trip</th><th>Fuel</th><th>Expenses</th><th>Margin</th><th>Load bringer (levy)</th><th>Other expense (unbilled)</th><th>Discount</th><th>Profit</th><th>Quote</th><th>Payment</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
 
       wrap.querySelectorAll('[data-invoice]').forEach(function (btn) {
         btn.addEventListener('click', function () { downloadInvoice_(btn.getAttribute('data-invoice'), btn); });
       });
+      wrap.querySelectorAll('[data-pay]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          recordPayment_(btn.getAttribute('data-pay'), Number(btn.getAttribute('data-total')), Number(btn.getAttribute('data-paid')), btn);
+        });
+      });
     }).withFailureHandler(function (err) {
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
     }).getTrips({});
+  }
+
+  /* ---------- Payment recording ---------- */
+
+  function recordPayment_(tripId, quoteTotal, currentPaid, btn) {
+    var suggested = currentPaid > 0 ? currentPaid : quoteTotal;
+    var input = prompt('Amount actually paid for this trip (the quote total was ' + money(quoteTotal) + '):', suggested.toFixed(2));
+    if (input === null) return;
+    var amount = Number(input);
+    if (!isFinite(amount) || isNaN(amount) || amount < 0) {
+      alert('Enter a valid amount that is zero or greater.');
+      return;
+    }
+
+    btn.disabled = true;
+    google.script.run.withSuccessHandler(function () {
+      btn.disabled = false;
+      loadTripHistory();
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      alert(err.message || String(err));
+    }).recordTripPayment(tripId, amount);
   }
 
   /* ---------- Invoice download ---------- */
@@ -679,7 +765,7 @@
         return;
       }
       var rows = trips.map(function (t) {
-        var net = t.marginAmount + t.brickCost - t.discountAmount;
+        var net = t.marginAmount + t.brickCost - t.discountAmount - t.otherExpenseAmount;
         return '<tr>' +
           '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
           '<td>' + escapeHtml(t.clientName) + '</td>' +
@@ -687,7 +773,7 @@
           '<td>' + money(t.fuelCost) + '</td>' +
           '<td>' + money(t.tripExpenses) + '</td>' +
           '<td>' + (t.loadLevyAmount > 0 ? money(t.loadLevyAmount) : '&mdash;') + '</td>' +
-          '<td><strong>' + money(net) + '</strong></td>' +
+          '<td><span class="badge ' + (net >= 0 ? 'ok' : 'danger') + '">' + money(net) + '</span></td>' +
           '</tr>';
       }).join('');
       wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Income</th><th>Fuel</th><th>Trip expenses</th><th>Load levy</th><th>Net</th></tr></thead><tbody>' + rows + '</tbody></table>';
@@ -711,6 +797,7 @@
     $('acct-fuel').textContent = money(summary.totalFuelExpense);
     $('acct-trip-expenses').textContent = money(summary.totalTripExpenses);
     $('acct-levies').textContent = money(summary.totalLoadLevyPaid);
+    $('acct-other-trip-expenses').textContent = money(summary.totalOtherTripExpenses);
     $('acct-manual-expenses').textContent = money(summary.totalManualExpenses);
     $('acct-bricks').textContent = summary.totalBrickRevenue > 0 ? money(summary.totalBrickRevenue) : '—';
     $('acct-discounts').textContent = summary.totalDiscountsGiven > 0 ? '−' + money(summary.totalDiscountsGiven) : '—';
@@ -771,19 +858,20 @@
   }
 
   $('expense-add-btn').addEventListener('click', function () {
-    var form = $('expense-form');
-    form.hidden = !form.hidden;
-    if (!form.hidden && !$('expense-date').value) {
+    if (!$('expense-date').value) {
       var today = new Date();
       $('expense-date').value = today.toISOString().slice(0, 10);
     }
+    openModal('expense-modal');
   });
 
   $('expense-cancel').addEventListener('click', function () {
-    $('expense-form').hidden = true;
+    closeModal('expense-modal');
     $('expense-form').reset();
     clearMsg($('expense-msg'));
   });
+
+  $('expense-modal-close').addEventListener('click', function () { $('expense-cancel').click(); });
 
   $('expense-form').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -795,7 +883,7 @@
     google.script.run.withSuccessHandler(function () {
       btn.disabled = false;
       $('expense-form').reset();
-      $('expense-form').hidden = true;
+      closeModal('expense-modal');
       loadAccounting();
     }).withFailureHandler(function (err) {
       btn.disabled = false;
@@ -996,7 +1084,7 @@
     $('truck-status').value = truck.status;
     $('truck-submit').textContent = 'Save changes';
     $('truck-cancel-edit').hidden = false;
-    $('truck-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openModal('truck-modal');
   }
 
   function resetTruckForm() {
@@ -1007,8 +1095,15 @@
     $('truck-status').value = 'Active';
     $('truck-submit').textContent = 'Add truck';
     $('truck-cancel-edit').hidden = true;
+    closeModal('truck-modal');
   }
 
+  $('truck-add-btn').addEventListener('click', function () {
+    resetTruckForm();
+    openModal('truck-modal');
+  });
+
+  $('truck-modal-close').addEventListener('click', resetTruckForm);
   $('truck-cancel-edit').addEventListener('click', resetTruckForm);
 
   $('truck-form').addEventListener('submit', function (e) {
@@ -1081,7 +1176,7 @@
     $('trailer-status').value = trailer.status;
     $('trailer-submit').textContent = 'Save changes';
     $('trailer-cancel-edit').hidden = false;
-    $('trailer-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openModal('trailer-modal');
   }
 
   function resetTrailerForm() {
@@ -1092,8 +1187,15 @@
     $('trailer-status').value = 'Active';
     $('trailer-submit').textContent = 'Add trailer';
     $('trailer-cancel-edit').hidden = true;
+    closeModal('trailer-modal');
   }
 
+  $('trailer-add-btn').addEventListener('click', function () {
+    resetTrailerForm();
+    openModal('trailer-modal');
+  });
+
+  $('trailer-modal-close').addEventListener('click', resetTrailerForm);
   $('trailer-cancel-edit').addEventListener('click', resetTrailerForm);
 
   $('trailer-form').addEventListener('submit', function (e) {
@@ -1179,6 +1281,7 @@
     google.script.run.withSuccessHandler(function () {
       loadDrivers();
       loadTrucks();
+      loadDriversForTripForm();
     }).withFailureHandler(function (err) {
       alert(err.message || String(err));
     })[fnName](driverId);
@@ -1193,7 +1296,7 @@
     $('driver-truck').value = driver.assignedTruckId || '';
     $('driver-submit').textContent = 'Save changes';
     $('driver-cancel-edit').hidden = false;
-    $('driver-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openModal('driver-modal');
   }
 
   function resetDriverForm() {
@@ -1203,8 +1306,15 @@
     $('driver-id').value = '';
     $('driver-submit').textContent = 'Add driver';
     $('driver-cancel-edit').hidden = true;
+    closeModal('driver-modal');
   }
 
+  $('driver-add-btn').addEventListener('click', function () {
+    resetDriverForm();
+    openModal('driver-modal');
+  });
+
+  $('driver-modal-close').addEventListener('click', resetDriverForm);
   $('driver-cancel-edit').addEventListener('click', resetDriverForm);
 
   $('driver-form').addEventListener('submit', function (e) {
@@ -1226,6 +1336,7 @@
       resetDriverForm();
       loadDrivers();
       loadTrucks();
+      loadDriversForTripForm();
     };
     var onFail = function (err) { btn.disabled = false; showMsg(msg, err.message || String(err), true); };
 

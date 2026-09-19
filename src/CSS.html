@@ -340,6 +340,45 @@
 
   .msg.error { display: block; background: var(--danger-weak); color: var(--danger); }
   .msg.success { display: block; background: var(--ok-weak); color: var(--ok); }
+  .msg.warn { display: block; background: var(--warn-weak); color: var(--warn); }
 
   .empty-state { color: var(--ink-4); font-size: var(--fs-sm); padding: 18px 8px; text-align: center; }
+
+  /* ---------- Modals ---------- */
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 30, 44, .45);
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal-box {
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 18px;
+    width: 100%;
+    max-width: 480px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+
+  .modal-close {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--ink-4);
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+
+  .modal-close:hover { color: var(--ink-1); }
 </style>

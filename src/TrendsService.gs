@@ -23,7 +23,7 @@ function getTrendsData() {
   var bringerTotals = {};
 
   trips.forEach(function (t) {
-    var netProfit = round2_(t.marginAmount + t.brickCost - t.discountAmount);
+    var netProfit = round2_(t.marginAmount + t.brickCost - t.discountAmount - t.otherExpenseAmount);
 
     if (t.tripDate) {
       var entry = dayIndex[Utilities.formatDate(new Date(t.tripDate), tz, 'yyyy-MM-dd')];

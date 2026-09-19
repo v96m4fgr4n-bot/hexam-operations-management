@@ -5,15 +5,26 @@
  * TollFee | ZrpFee | VidFee | OtherFeesDescription | OtherFeesAmount | TripExpenses |
  * Subtotal | MarginPercent | MarginAmount |
  * OrderType | BrickQuantity | BrickPricePer1000 | BrickCost |
+ * OtherExpenseDescription | OtherExpenseAmount |
  * LoadBringerId | LoadBringerName | LoadLevyAmount |
  * TotalBeforeDiscount | DiscountAmount | DiscountReason | TotalCost |
- * Notes | CreatedAt
+ * Notes | CreatedAt |
+ * DriverId | DriverName | AmountPaid | PaymentRecordedAt
+ *
+ * DriverId/DriverName: the driver assigned to the trip, picked from the
+ * Drivers sheet (Fleet) at save time - optional, purely informational, no
+ * effect on the quote.
+ *
+ * AmountPaid/PaymentRecordedAt: the quote (TotalCost) is an estimate given
+ * up front - AmountPaid is what was actually collected, recorded separately
+ * via recordTripPayment() after the fact (0/blank until then). Never feeds
+ * back into any quote figure.
  *
  * Quote build-up (all client-facing pricing derives from Settings, never
  * from a client-submitted number):
  *   fuelRatePerKm       = fuelPricePerLitre / fuelConsumptionKmPerL
  *   fuelCost            = roundTripDistanceKm x fuelRatePerKm
- *   tripExpenses        = tollFee + zrpFee + vidFee + otherFeesAmount
+ *   tripExpenses        = tollFee + zrpFee + vidFee + otherFeesAmount   <- billed to the client
  *   subtotal            = fuelCost + tripExpenses
  *   marginAmount        = subtotal x (companyMarginPercent / 100)
  *   brickCost           = (brickQuantity / 1000) x Settings' BRICK_PRICE_PER_1000,
@@ -26,11 +37,17 @@
  *   totalBeforeDiscount = subtotal + marginAmount + brickCost + loadLevyAmount
  *   totalCost           = totalBeforeDiscount - discountAmount   <- the quote given to the client
  *
+ *   otherExpenseAmount  = a real cost for this trip the company incurs but does
+ *                         NOT bill the client for (e.g. a tow, an extra fuel
+ *                         top-up) - never touches totalBeforeDiscount/totalCost,
+ *                         only reduces this trip's tracked profit
+ *
  * Net profit per trip (see AccountingService.gs/DashboardService.gs/
- * TrendsService.gs) is marginAmount + brickCost - discountAmount, since
- * brickCost has no tracked cost-of-goods to net against (only its client
- * sell price), and loadLevyAmount/fuelCost/tripExpenses are real costs
- * already excluded from that figure.
+ * TrendsService.gs) is marginAmount + brickCost - discountAmount - otherExpenseAmount:
+ * brickCost has no tracked cost-of-goods to net against (only its client sell
+ * price), loadLevyAmount/fuelCost/tripExpenses are real costs already excluded
+ * from that figure, and otherExpenseAmount is a real cost that was never
+ * billed in the first place.
  */
 
 var ORDER_TYPES = ['Delivery Only', 'Transport + Bricks'];
@@ -42,7 +59,8 @@ var ORDER_TYPES = ['Delivery Only', 'Transport + Bricks'];
  * persist anything.
  *
  * input: { oneWayDistanceKm, tollFee, zrpFee, vidFee, otherFeesAmount,
- *          orderType, brickQuantity, loadBringerName, discountAmount, discountReason }
+ *          orderType, brickQuantity, otherExpenseDescription, otherExpenseAmount,
+ *          loadBringerName, discountAmount, discountReason }
  */
 function computeTripQuote_(input) {
   input = input || {};
@@ -72,6 +90,13 @@ function computeTripQuote_(input) {
     brickQuantity = validatePositiveNumber_(input.brickQuantity, 'Number of bricks');
     brickCost = round2_((brickQuantity / 1000) * settings.brickPricePer1000);
   }
+
+  // A real cost for this trip, never billed to the client - kept entirely
+  // out of totalBeforeDiscount/totalCost below.
+  var otherExpenseDescription = String(input.otherExpenseDescription || '').trim();
+  var otherExpenseAmount = otherExpenseDescription
+    ? validateNonNegativeNumber_(input.otherExpenseAmount || 0, 'Other expense amount')
+    : 0;
 
   // Freehand-typed, like the client - resolved to an actual record (and
   // created if new) only at save time, never here, so previewing a quote
@@ -108,6 +133,8 @@ function computeTripQuote_(input) {
     brickQuantity: brickQuantity,
     brickPricePer1000: settings.brickPricePer1000,
     brickCost: brickCost,
+    otherExpenseDescription: otherExpenseDescription,
+    otherExpenseAmount: otherExpenseAmount,
     loadBringerName: loadBringerName,
     loadLevyAmount: loadLevyAmount,
     totalBeforeDiscount: totalBeforeDiscount,
@@ -133,7 +160,7 @@ function getTripQuote(input) {
  *
  * tripInput: { clientName, clientPhone, destination, oneWayDistanceKm,
  *              tollFee, zrpFee, vidFee, otherFeesDescription, otherFeesAmount,
- *              loadBringerName, discountAmount, discountReason, notes }
+ *              loadBringerName, discountAmount, discountReason, notes, driverId }
  */
 function saveTrip(tripInput) {
   tripInput = tripInput || {};
@@ -153,6 +180,17 @@ function saveTrip(tripInput) {
     quote.loadBringerName = bringer.name;
   }
 
+  // Picked from the Drivers sheet (Fleet), not freehand - purely
+  // informational, so an unrecognized id is rejected rather than silently
+  // dropped.
+  var driverId = String(tripInput.driverId || '').trim();
+  var driverName = '';
+  if (driverId) {
+    var driver = getDriver(driverId);
+    if (!driver) throw new Error('Selected driver was not found.');
+    driverName = driver.name;
+  }
+
   var sheet = getSpreadsheet_().getSheetByName('Trips');
   var id = generateId_('trip');
   var now = new Date();
@@ -164,9 +202,11 @@ function saveTrip(tripInput) {
     quote.tollFee, quote.zrpFee, quote.vidFee, otherFeesDescription, quote.otherFeesAmount, quote.tripExpenses,
     quote.subtotal, quote.marginPercent, quote.marginAmount,
     quote.orderType, quote.brickQuantity, quote.brickPricePer1000, quote.brickCost,
+    quote.otherExpenseDescription, quote.otherExpenseAmount,
     loadBringerId, quote.loadBringerName, quote.loadLevyAmount,
     quote.totalBeforeDiscount, quote.discountAmount, quote.discountReason, quote.totalCost,
-    notes, now
+    notes, now,
+    driverId, driverName, 0, ''
   ]);
 
   logAudit_('CREATE', 'Trip', id, 'Quoted trip for ' + client.name + ' to ' + destination + ' (' + quote.currencySymbol + quote.totalCost.toFixed(2) + ')');
@@ -184,10 +224,12 @@ function saveTrip(tripInput) {
       MarginPercent: quote.marginPercent, MarginAmount: quote.marginAmount,
       OrderType: quote.orderType, BrickQuantity: quote.brickQuantity,
       BrickPricePer1000: quote.brickPricePer1000, BrickCost: quote.brickCost,
+      OtherExpenseDescription: quote.otherExpenseDescription, OtherExpenseAmount: quote.otherExpenseAmount,
       LoadBringerId: loadBringerId, LoadBringerName: quote.loadBringerName, LoadLevyAmount: quote.loadLevyAmount,
       TotalBeforeDiscount: quote.totalBeforeDiscount, DiscountAmount: quote.discountAmount,
       DiscountReason: quote.discountReason, TotalCost: quote.totalCost,
-      Notes: notes, CreatedAt: now
+      Notes: notes, CreatedAt: now,
+      DriverId: driverId, DriverName: driverName, AmountPaid: 0, PaymentRecordedAt: ''
     })
   };
 }
@@ -218,6 +260,8 @@ function tripRowToObject_(row) {
     brickQuantity: Number(row.BrickQuantity) || 0,
     brickPricePer1000: Number(row.BrickPricePer1000) || 0,
     brickCost: Number(row.BrickCost) || 0,
+    otherExpenseDescription: row.OtherExpenseDescription || '',
+    otherExpenseAmount: Number(row.OtherExpenseAmount) || 0,
     loadBringerId: row.LoadBringerId || '',
     loadBringerName: row.LoadBringerName || '',
     loadLevyAmount: Number(row.LoadLevyAmount) || 0,
@@ -226,7 +270,11 @@ function tripRowToObject_(row) {
     discountReason: row.DiscountReason || '',
     totalCost: Number(row.TotalCost),
     notes: row.Notes || '',
-    createdAt: row.CreatedAt
+    createdAt: row.CreatedAt,
+    driverId: row.DriverId || '',
+    driverName: row.DriverName || '',
+    amountPaid: Number(row.AmountPaid) || 0,
+    paymentRecordedAt: row.PaymentRecordedAt || ''
   };
 }
 
@@ -250,4 +298,43 @@ function getTrips(options) {
   }
 
   return rows;
+}
+
+function getTrip(tripId) {
+  return getTrips({}).filter(function (t) { return t.tripId === tripId; })[0] || null;
+}
+
+/**
+ * The quote given to the client (TotalCost) is an estimate made up front.
+ * This records what was actually paid, after the fact - a separate figure
+ * that never feeds back into the quote itself. Recording a payment again
+ * overwrites the previous amount (e.g. correcting a typo, or topping up a
+ * partial payment to the full amount).
+ */
+function recordTripPayment(tripId, amountPaid) {
+  validateNonEmptyString_(tripId, 'Trip id');
+  var amount = validateNonNegativeNumber_(amountPaid, 'Amount paid');
+
+  var sheet = getSpreadsheet_().getSheetByName('Trips');
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var idCol = headers.indexOf('TripId');
+  var destinationCol = headers.indexOf('Destination');
+  var amountPaidCol = headers.indexOf('AmountPaid');
+  var paymentRecordedAtCol = headers.indexOf('PaymentRecordedAt');
+
+  for (var r = 1; r < rows.length; r++) {
+    if (rows[r][idCol] === tripId) {
+      var rowNum = r + 1;
+      sheet.getRange(rowNum, amountPaidCol + 1).setValue(amount);
+      sheet.getRange(rowNum, paymentRecordedAtCol + 1).setValue(new Date());
+
+      var symbol = getSettings().currencySymbol;
+      logAudit_('UPDATE', 'Trip', tripId, 'Recorded payment of ' + symbol + amount.toFixed(2) + ' for trip to ' + rows[r][destinationCol]);
+
+      return { success: true, trip: getTrip(tripId) };
+    }
+  }
+
+  throw new Error('Trip not found: ' + tripId);
 }

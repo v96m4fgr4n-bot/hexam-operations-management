@@ -5,12 +5,14 @@
  * expenses from the Expenses sheet (repairs, insurance, salaries, etc. -
  * see ExpenseService.gs), which trips have no way to capture on their own.
  *
- * Net profit per trip works out to marginAmount + brickCost - discountAmount:
- * the load levy is a pass-through (charged to the client, paid out to the
- * bringer), every other real trip cost is subtracted back out here, and
- * brick revenue has no tracked cost-of-goods to net against (only its
- * client sell price), so it falls straight to profit. Manual expenses are
- * then subtracted on top for the true business net profit.
+ * Net profit per trip works out to marginAmount + brickCost - discountAmount
+ * - otherExpenseAmount: the load levy is a pass-through (charged to the
+ * client, paid out to the bringer), every other real trip cost is
+ * subtracted back out here, brick revenue has no tracked cost-of-goods to
+ * net against (only its client sell price) so it falls straight to profit,
+ * and otherExpenseAmount is a real per-trip cost that was never billed to
+ * the client in the first place. Manual expenses are then subtracted on
+ * top for the true business net profit.
  */
 function getAccountingSummary() {
   var trips = getTrips({});
@@ -22,6 +24,7 @@ function getAccountingSummary() {
     totalFuelExpense: 0,
     totalTripExpenses: 0,
     totalBrickRevenue: 0,
+    totalOtherTripExpenses: 0,
     totalLoadLevyPaid: 0,
     totalDiscountsGiven: 0,
     totalManualExpenses: 0,
@@ -33,6 +36,7 @@ function getAccountingSummary() {
     summary.totalFuelExpense = round2_(summary.totalFuelExpense + t.fuelCost);
     summary.totalTripExpenses = round2_(summary.totalTripExpenses + t.tripExpenses);
     summary.totalBrickRevenue = round2_(summary.totalBrickRevenue + t.brickCost);
+    summary.totalOtherTripExpenses = round2_(summary.totalOtherTripExpenses + t.otherExpenseAmount);
     summary.totalLoadLevyPaid = round2_(summary.totalLoadLevyPaid + t.loadLevyAmount);
     summary.totalDiscountsGiven = round2_(summary.totalDiscountsGiven + t.discountAmount);
   });
@@ -48,7 +52,8 @@ function getAccountingSummary() {
     .sort(function (a, b) { return b.total - a.total; });
 
   summary.totalExpenses = round2_(
-    summary.totalFuelExpense + summary.totalTripExpenses + summary.totalLoadLevyPaid + summary.totalManualExpenses
+    summary.totalFuelExpense + summary.totalTripExpenses + summary.totalOtherTripExpenses +
+    summary.totalLoadLevyPaid + summary.totalManualExpenses
   );
   summary.netProfit = round2_(summary.totalIncome - summary.totalExpenses);
 

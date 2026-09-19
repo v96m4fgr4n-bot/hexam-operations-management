@@ -69,12 +69,26 @@
 
     <div class="form-grid">
       <div class="field">
-        <label for="trip-other-desc">Other fee description (optional)</label>
+        <label for="trip-other-desc">
+          Other fee description (optional)
+          <span class="hint">Billed to the client &mdash; part of the quote total</span>
+        </label>
         <input id="trip-other-desc" type="text" placeholder="e.g. weighbridge fee">
       </div>
       <div class="field">
         <label for="trip-other-amount">Other fee amount</label>
         <input id="trip-other-amount" type="number" min="0" step="0.01" value="0">
+      </div>
+      <div class="field">
+        <label for="trip-expense-desc">
+          Other expense (optional)
+          <span class="hint">A real cost for this trip, e.g. a tow or extra fuel top-up &mdash; NOT billed to the client, only reduces this trip's tracked profit</span>
+        </label>
+        <input id="trip-expense-desc" type="text" placeholder="e.g. breakdown assistance">
+      </div>
+      <div class="field">
+        <label for="trip-expense-amount">Other expense amount</label>
+        <input id="trip-expense-amount" type="number" min="0" step="0.01" value="0">
       </div>
     </div>
 
@@ -87,6 +101,19 @@
         </label>
         <input id="trip-load-bringer-name" type="text" list="trip-load-bringer-datalist" autocomplete="off">
         <datalist id="trip-load-bringer-datalist"></datalist>
+      </div>
+    </div>
+
+    <h3 style="margin-top:20px;">Assigned Driver (optional)</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="trip-driver">
+          Driver
+          <span class="hint">Picked from the Fleet driver list &mdash; leave unassigned if not yet decided</span>
+        </label>
+        <select id="trip-driver">
+          <option value="">No driver assigned</option>
+        </select>
       </div>
     </div>
 
@@ -121,6 +148,8 @@
       <div class="line" id="cs-discount-row" hidden><span>Discount</span><span id="cs-discount">-</span></div>
       <div class="line total"><span>Quote total</span><span id="cs-total">-</span></div>
     </div>
+
+    <div class="msg" id="cs-expense-note"></div>
 
     <button type="submit" class="btn primary" id="trip-submit">Save trip</button>
     <div class="msg" id="trip-msg"></div>

@@ -23,20 +23,27 @@ spreadsheet.
 - **Dashboard** (landing screen) — today/month revenue, profit, and trip
   counts, average quote value, active client/bringer counts, recent trips.
 - **New Trip** — quote a trip; client and load bringer are both typed
-  freehand (see below), with a live client-side cost preview.
-- **Trip History** — every saved trip, newest first.
+  freehand (see below), with a live client-side cost preview. Optionally
+  records an unbilled "other expense" and picks an assigned driver from
+  Fleet.
+- **Trip History** — every saved trip, newest first, with a color-coded
+  Profit column (green = profitable, red = loss, with the margin %) and a
+  Payment column ("Record payment" captures what was actually collected
+  against the quoted estimate — see "Payment recording" below).
 - **Clients** / **Load Bringers** — manage records created via New Trip
   (edit, deactivate/reactivate); Load Bringers also shows a running
   loads-brought/total-paid tally per person.
 - **Accounting** — income/expense roll-up (trip-derived + manually-recorded
-  business expenses, category breakdown) and per-trip ledger, derived live
-  from Trips + Expenses. "+ Add expense" records one-off business costs
-  (repairs, insurance, salaries, etc. — see Expenses below).
+  business expenses, category breakdown) and a color-coded per-trip ledger,
+  derived live from Trips + Expenses. "+ Add expense" (a popup) records
+  one-off business costs (repairs, insurance, salaries, etc. — see
+  Expenses below).
 - **Trends** — 14-day revenue/profit and trip-volume charts, top clients
   by revenue, top load bringers by loads brought.
 - **Fleet** — trucks, trailers, roadworthy/service due dates with
   expired/due-soon badges, status (Active / In Repair / Offline), and
-  driver-to-truck assignment.
+  driver-to-truck assignment. Adding/editing a truck, trailer, or driver
+  opens in a popup dialog rather than an inline form.
 - **Audit Log** — every create/update/deactivate/reactivate across
   Clients, Load Bringers, Trips, Fleet, Expenses, and Settings, with who
   (signed-in user email) and when.
@@ -67,6 +74,11 @@ load levy                  = Settings' load levy amount, IF a load bringer
                             name was typed for this trip, else 0
 total before discount      = subtotal + margin amount + brick cost + load levy
 quote total                = total before discount − discount amount
+
+other expense (unbilled)   = a real cost for this trip that is NOT billed
+                            to the client (e.g. a tow, an extra fuel
+                            top-up) — never touches the quote total above,
+                            only reduces this trip's tracked profit
 ```
 
 Toll/ZRP/VID fees default to values in **Settings** but can be overridden
@@ -103,6 +115,32 @@ reveals a "Number of bricks" field and bills at Settings' price per 1000,
 added after margin (bricks are billed at their set sell price, not
 margined like the transport build-up).
 
+**Other fee vs. other expense**: New Trip has two distinct ad-hoc fields.
+"Other fee" is billed to the client — it's part of `trip expenses` and
+flows into the quote total. "Other expense" is the opposite: a real cost
+Hexam incurs for that trip (e.g. a tow, extra fuel) that is deliberately
+*not* billed to the client — it never touches the quote total, it only
+reduces that trip's tracked profit (see "Net profit per trip" below).
+
+**Assigned driver**: New Trip has an optional "Assigned Driver" dropdown,
+picked from Fleet's active driver list (not freehand, since it's a closed
+set). Purely informational — it has no effect on the quote — and shows up
+as a column on Trip History.
+
+**Payment recording**: the quote total is an *estimate* given to the
+client up front. "Record payment" (on each Trip History row) captures what
+was actually collected, separately from the quote — `recordTripPayment()`
+stamps `AmountPaid`/`PaymentRecordedAt` on the trip without touching any
+quote figure. Trip History's Payment column shows "Not recorded" (nothing
+collected yet), a partial-payment badge, or a paid-in-full badge, compared
+against the quoted total.
+
+**Net profit per trip** (Trip History's Profit column, and Accounting's
+per-trip ledger) = margin amount + brick cost − discount amount − other
+expense amount. This is separate from `AmountPaid`: profit is what the
+trip is expected to net based on the quote; payment recording is a
+separate check on what actually came in.
+
 **Business expenses**: one-off costs not tied to any trip (vehicle
 repairs, insurance, salaries, licensing, etc.) are recorded on the
 Accounting screen via "+ Add expense", picked from a fixed set of
@@ -111,6 +149,14 @@ categories relevant to a trucking/delivery business (see
 expense total and net profit, but not into Dashboard/Trends, which stay
 scoped to trip margin only — so "profit" on Accounting can differ from
 "profit" on Dashboard/Trends by the amount of recorded business expenses.
+
+**Popup entry forms**: adding a business expense, or adding/editing a
+truck, trailer, or driver, opens in a small popup dialog (a
+`.modal-overlay`/`.modal-box` pair, closed by its × button, its own
+Cancel button, clicking outside it, or navigating to a different screen)
+rather than an always-visible inline form on the page. Client and load
+bringer entry stay as inline forms/freehand text on their own screens,
+since those are looked at far more frequently.
 
 ## Sheets
 
@@ -171,9 +217,15 @@ ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,
 FuelPricePerLitre, FuelConsumptionKmPerL, FuelRatePerKm, FuelCost,
 TollFee, ZrpFee, VidFee, OtherFeesDescription, OtherFeesAmount,
 TripExpenses, Subtotal, MarginPercent, MarginAmount, OrderType,
-BrickQuantity, BrickPricePer1000, BrickCost, LoadBringerId,
-LoadBringerName, LoadLevyAmount, TotalBeforeDiscount, DiscountAmount,
-DiscountReason, TotalCost, Notes, CreatedAt.
+BrickQuantity, BrickPricePer1000, BrickCost, OtherExpenseDescription,
+OtherExpenseAmount, LoadBringerId, LoadBringerName, LoadLevyAmount,
+TotalBeforeDiscount, DiscountAmount, DiscountReason, TotalCost, Notes,
+CreatedAt, DriverId, DriverName, AmountPaid, PaymentRecordedAt.
+OtherExpenseAmount is a real, unbilled trip cost (see "Other fee vs. other
+expense" above). DriverId/DriverName is the optional Fleet driver assigned
+to the trip. AmountPaid/PaymentRecordedAt are written later, by
+`recordTripPayment()`, once payment actually comes in — both are blank/0
+on a freshly-saved trip.
 
 All sheets, and any Settings keys not yet present, are created/added
 automatically the first time the web app is opened (`initializeSpreadsheet`,

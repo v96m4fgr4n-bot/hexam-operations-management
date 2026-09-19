@@ -46,9 +46,11 @@ function initializeSpreadsheet() {
     'TollFee', 'ZrpFee', 'VidFee', 'OtherFeesDescription', 'OtherFeesAmount', 'TripExpenses',
     'Subtotal', 'MarginPercent', 'MarginAmount',
     'OrderType', 'BrickQuantity', 'BrickPricePer1000', 'BrickCost',
+    'OtherExpenseDescription', 'OtherExpenseAmount',
     'LoadBringerId', 'LoadBringerName', 'LoadLevyAmount',
     'TotalBeforeDiscount', 'DiscountAmount', 'DiscountReason', 'TotalCost',
-    'Notes', 'CreatedAt'
+    'Notes', 'CreatedAt',
+    'DriverId', 'DriverName', 'AmountPaid', 'PaymentRecordedAt'
   ]);
 
   // Remove the default blank "Sheet1" if it's still there and unused.
