@@ -1,12 +1,12 @@
 <div class="page-head">
   <div>
     <h1 class="page-title">Dashboard</h1>
-    <p class="page-sub" id="dash-sub">Loading&hellip;</p>
+    <p class="page-sub" id="dash-sub" role="status" aria-live="polite">Loading&hellip;</p>
   </div>
 </div>
 
 <h3>Today</h3>
-<div class="form-grid">
+<div class="form-grid" id="dash-today-grid" aria-busy="true">
   <div class="card stat-card">
     <h3>Revenue</h3>
     <div class="stat-value" id="dash-today-revenue">-</div>
@@ -22,7 +22,7 @@
 </div>
 
 <h3 style="margin-top:18px;">This Month</h3>
-<div class="form-grid">
+<div class="form-grid" id="dash-month-grid" aria-busy="true">
   <div class="card stat-card">
     <h3>Revenue</h3>
     <div class="stat-value" id="dash-month-revenue">-</div>
@@ -38,7 +38,7 @@
 </div>
 
 <h3 style="margin-top:18px;">Overall</h3>
-<div class="form-grid">
+<div class="form-grid" id="dash-overall-grid" aria-busy="true">
   <div class="card stat-card">
     <h3>Avg. quote value</h3>
     <div class="stat-value" id="dash-avg-quote">-</div>

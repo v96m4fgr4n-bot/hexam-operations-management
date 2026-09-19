@@ -14,7 +14,8 @@
 
   function money(n) {
     var symbol = (STATE.settings && STATE.settings.currencySymbol) || '$';
-    return symbol + Number(n || 0).toFixed(2);
+    var amount = Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return symbol + amount;
   }
 
   function showMsg(el, text, isError) {
@@ -167,6 +168,9 @@
   function loadDashboard() {
     google.script.run.withSuccessHandler(renderDashboard).withFailureHandler(function (err) {
       $('dash-sub').textContent = err.message || String(err);
+      ['dash-today-grid', 'dash-month-grid', 'dash-overall-grid'].forEach(function (id) {
+        $(id).removeAttribute('aria-busy');
+      });
     }).getDashboardSummary();
   }
 
@@ -187,6 +191,10 @@
     $('dash-active-clients').textContent = s.activeClientCount;
     $('dash-active-bringers').textContent = s.activeLoadBringerCount;
     $('dash-active-drivers').textContent = s.activeDriverCount;
+
+    ['dash-today-grid', 'dash-month-grid', 'dash-overall-grid'].forEach(function (id) {
+      $(id).removeAttribute('aria-busy');
+    });
 
     var wrap = $('dash-recent-wrap');
     if (!s.recentTrips.length) {

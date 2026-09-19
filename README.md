@@ -25,6 +25,8 @@ spreadsheet.
   client/bringer/driver counts, recent trips. Net profit is trip margin
   minus that period's recorded business expenses (see "Net profit per
   trip" and Trends' scope note below) — not just trip-level gross margin.
+  Money values show thousand separators; stat tiles carry `aria-busy`
+  while loading.
 - **New Trip** — quote a trip; client and load bringer are both typed
   freehand (see below), with a live client-side cost preview. Optionally
   records an unbilled "other expense" and picks an assigned driver from
