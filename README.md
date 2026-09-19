@@ -42,7 +42,8 @@ spreadsheet.
   one-off business costs (repairs, insurance, salaries, etc. — see
   Expenses below).
 - **Trends** — 14-day revenue/profit and trip-volume charts, top clients
-  by revenue, top load bringers by loads brought.
+  by revenue, top load bringers by loads brought, and top drivers by trips
+  completed (only trips with a driver assigned on New Trip count).
 - **Fleet** — trucks, trailers, roadworthy/service due dates with
   expired/due-soon badges, status (Active / In Repair / Offline), and
   driver-to-truck assignment. Adding/editing a truck, trailer, or driver

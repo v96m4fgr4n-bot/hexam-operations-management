@@ -902,7 +902,7 @@
   /* ---------- Trends ---------- */
 
   function loadTrends() {
-    var ids = ['trend-revenue-chart', 'trend-trips-chart', 'trend-clients-chart', 'trend-bringers-chart'];
+    var ids = ['trend-revenue-chart', 'trend-trips-chart', 'trend-clients-chart', 'trend-bringers-chart', 'trend-drivers-chart'];
     google.script.run.withSuccessHandler(function (data) {
       $('trend-revenue-chart').innerHTML = svgDualBars_(data.dailyTrend, 'revenue', 'profit');
       $('trend-trips-chart').innerHTML = svgSingleBars_(data.dailyTrend, 'tripCount', 'var(--brand-blue)', function (v) { return String(v); });
@@ -912,6 +912,9 @@
       $('trend-bringers-chart').innerHTML = data.topLoadBringers.length
         ? svgRankedBars_(data.topLoadBringers, 'tripCount', 'name', function (v) { return v + (v === 1 ? ' load' : ' loads'); }, 'var(--brand-orange)')
         : '<div class="empty-state">No load bringers recorded yet.</div>';
+      $('trend-drivers-chart').innerHTML = data.topDrivers.length
+        ? svgRankedBars_(data.topDrivers, 'tripCount', 'name', function (v) { return v + (v === 1 ? ' trip' : ' trips'); }, 'var(--brand-blue)')
+        : '<div class="empty-state">No trips with a driver assigned yet.</div>';
     }).withFailureHandler(function (err) {
       ids.forEach(function (id) { $(id).innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>'; });
     }).getTrendsData();
