@@ -175,10 +175,12 @@
 
     $('dash-today-revenue').textContent = money(s.todayRevenue);
     $('dash-today-profit').textContent = money(s.todayProfit);
+    $('dash-today-profit').className = 'stat-value ' + (s.todayProfit >= 0 ? 'positive' : 'negative');
     $('dash-today-trips').textContent = s.todayTripCount;
 
     $('dash-month-revenue').textContent = money(s.monthRevenue);
     $('dash-month-profit').textContent = money(s.monthProfit);
+    $('dash-month-profit').className = 'stat-value ' + (s.monthProfit >= 0 ? 'positive' : 'negative');
     $('dash-month-trips').textContent = s.monthTripCount;
 
     $('dash-avg-quote').textContent = money(s.averageQuoteValue);

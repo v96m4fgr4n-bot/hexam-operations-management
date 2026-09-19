@@ -4,7 +4,9 @@
  * Manual business expenses that aren't tied to a specific trip (trip-level
  * costs - fuel, toll/ZRP/VID, load levy - are already captured on Trips
  * itself). These feed into AccountingService.gs's expense total and net
- * profit, but not into Dashboard/Trends, which stay scoped to trip margin.
+ * profit, and into DashboardService.gs's net profit (matched to a period
+ * by the expense's own date), but not into Trends, which stays scoped to
+ * trip margin.
  */
 
 var EXPENSE_CATEGORIES = [

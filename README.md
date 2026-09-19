@@ -20,8 +20,11 @@ spreadsheet.
 
 ## Screens
 
-- **Dashboard** (landing screen) — today/month revenue, profit, and trip
-  counts, average quote value, active client/bringer counts, recent trips.
+- **Dashboard** (landing screen) — today/month revenue, **net** profit (color-
+  coded green/red), and trip counts, average quote value, active
+  client/bringer counts, recent trips. Net profit is trip margin minus that
+  period's recorded business expenses (see "Net profit per trip" and
+  Trends' scope note below) — not just trip-level gross margin.
 - **New Trip** — quote a trip; client and load bringer are both typed
   freehand (see below), with a live client-side cost preview. Optionally
   records an unbilled "other expense" and picks an assigned driver from
@@ -146,9 +149,11 @@ repairs, insurance, salaries, licensing, etc.) are recorded on the
 Accounting screen via "+ Add expense", picked from a fixed set of
 categories relevant to a trucking/delivery business (see
 `EXPENSE_CATEGORIES` in `ExpenseService.gs`). These feed into Accounting's
-expense total and net profit, but not into Dashboard/Trends, which stay
-scoped to trip margin only — so "profit" on Accounting can differ from
-"profit" on Dashboard/Trends by the amount of recorded business expenses.
+expense total and net profit, and into Dashboard's net profit (matched to
+a period — today/month/all-time — by the expense's own date), but not into
+Trends, which stays scoped to trip margin only — so "profit" on
+Accounting/Dashboard can differ from "profit" on Trends by the amount of
+recorded business expenses.
 
 **Popup entry forms**: adding a business expense, or adding/editing a
 truck, trailer, or driver, opens in a small popup dialog (a
