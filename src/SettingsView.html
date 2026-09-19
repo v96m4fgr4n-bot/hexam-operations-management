@@ -1,0 +1,35 @@
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Settings</h1>
+    <p class="page-sub">Fuel rate and default fees used when costing a trip.</p>
+  </div>
+</div>
+
+<div class="card">
+  <form id="settings-form">
+    <div class="form-grid">
+      <div class="field">
+        <label for="settings-fuel-rate">Fuel rate per km (round trip)</label>
+        <input id="settings-fuel-rate" type="number" min="0" step="0.01" required>
+      </div>
+      <div class="field">
+        <label for="settings-currency">Currency symbol</label>
+        <input id="settings-currency" type="text" maxlength="4" required>
+      </div>
+      <div class="field">
+        <label for="settings-toll">Default toll fee</label>
+        <input id="settings-toll" type="number" min="0" step="0.01" required>
+      </div>
+      <div class="field">
+        <label for="settings-zrp">Default ZRP fee</label>
+        <input id="settings-zrp" type="number" min="0" step="0.01" required>
+      </div>
+      <div class="field">
+        <label for="settings-vid">Default VID fee</label>
+        <input id="settings-vid" type="number" min="0" step="0.01" required>
+      </div>
+    </div>
+    <button type="submit" class="btn primary" id="settings-submit">Save settings</button>
+    <div class="msg" id="settings-msg"></div>
+  </form>
+</div>

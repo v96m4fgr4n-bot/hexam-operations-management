@@ -1,0 +1,282 @@
+<script>
+  var STATE = { settings: null, clients: [] };
+
+  function $(id) { return document.getElementById(id); }
+
+  function escapeHtml(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function money(n) {
+    var symbol = (STATE.settings && STATE.settings.currencySymbol) || '$';
+    return symbol + Number(n || 0).toFixed(2);
+  }
+
+  function showMsg(el, text, isError) {
+    el.textContent = text;
+    el.className = 'msg ' + (isError ? 'error' : 'success');
+  }
+
+  function clearMsg(el) {
+    el.textContent = '';
+    el.className = 'msg';
+  }
+
+  /* ---------- Sidebar navigation ---------- */
+
+  function setView(viewName) {
+    document.querySelectorAll('.nav-item').forEach(function (item) {
+      item.classList.toggle('active', item.getAttribute('data-view') === viewName);
+    });
+    document.querySelectorAll('.view').forEach(function (view) {
+      view.classList.toggle('active', view.id === 'view-' + viewName);
+    });
+    closeSidebar();
+
+    if (viewName === 'trip-history') loadTripHistory();
+    if (viewName === 'clients') loadClients();
+  }
+
+  function openSidebar() {
+    $('sidebar').classList.add('open');
+    $('sidebar-backdrop').classList.add('open');
+  }
+
+  function closeSidebar() {
+    $('sidebar').classList.remove('open');
+    $('sidebar-backdrop').classList.remove('open');
+  }
+
+  document.querySelectorAll('.nav-item').forEach(function (item) {
+    item.addEventListener('click', function () { setView(item.getAttribute('data-view')); });
+    item.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(item.getAttribute('data-view')); }
+    });
+  });
+
+  $('burger').addEventListener('click', openSidebar);
+  $('sidebar-backdrop').addEventListener('click', closeSidebar);
+
+  /* ---------- Bootstrap ---------- */
+
+  function loadInitialData() {
+    google.script.run.withSuccessHandler(function (settings) {
+      STATE.settings = settings;
+      populateSettingsForm(settings);
+      prefillTripFeesFromSettings();
+      updateTripPreview();
+    }).withFailureHandler(function (err) {
+      showMsg($('trip-msg'), err.message || String(err), true);
+    }).getSettings();
+
+    loadClientsForTripForm();
+  }
+
+  /* ---------- Settings ---------- */
+
+  function populateSettingsForm(settings) {
+    $('settings-fuel-rate').value = settings.fuelRatePerKm;
+    $('settings-currency').value = settings.currencySymbol;
+    $('settings-toll').value = settings.defaultTollFee;
+    $('settings-zrp').value = settings.defaultZrpFee;
+    $('settings-vid').value = settings.defaultVidFee;
+  }
+
+  $('settings-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('settings-submit');
+    var msg = $('settings-msg');
+    clearMsg(msg);
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(function (result) {
+      btn.disabled = false;
+      STATE.settings = result.settings;
+      showMsg(msg, 'Settings saved.', false);
+      updateTripPreview();
+      prefillTripFeesFromSettings();
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    }).updateSettings({
+      fuelRatePerKm: Number($('settings-fuel-rate').value),
+      currencySymbol: $('settings-currency').value,
+      defaultTollFee: Number($('settings-toll').value),
+      defaultZrpFee: Number($('settings-zrp').value),
+      defaultVidFee: Number($('settings-vid').value)
+    });
+  });
+
+  /* ---------- Clients ---------- */
+
+  function loadClientsForTripForm() {
+    google.script.run.withSuccessHandler(function (clients) {
+      STATE.clients = clients;
+      var select = $('trip-client');
+      select.innerHTML = clients.length
+        ? clients.map(function (c) { return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + '</option>'; }).join('')
+        : '<option value="">No active clients - add one first</option>';
+    }).withFailureHandler(function (err) {
+      showMsg($('trip-msg'), err.message || String(err), true);
+    }).getClients(false);
+  }
+
+  function loadClients() {
+    var wrap = $('clients-table-wrap');
+    google.script.run.withSuccessHandler(function (clients) {
+      if (!clients.length) {
+        wrap.innerHTML = '<div class="empty-state">No clients yet. Add one above.</div>';
+        return;
+      }
+      var rows = clients.map(function (c) {
+        return '<tr>' +
+          '<td>' + escapeHtml(c.name) + '</td>' +
+          '<td>' + escapeHtml(c.contactPerson) + '</td>' +
+          '<td>' + escapeHtml(c.phone) + '</td>' +
+          '<td>' + escapeHtml(c.email) + '</td>' +
+          '<td><span class="badge ' + (c.active ? 'ok' : 'neutral') + '">' + (c.active ? 'Active' : 'Inactive') + '</span></td>' +
+          '<td>' + (c.active ? '<button class="btn sm danger" data-deactivate="' + escapeHtml(c.id) + '">Deactivate</button>' : '') + '</td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+
+      wrap.querySelectorAll('[data-deactivate]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('Deactivate this client? Past trips are kept.')) return;
+          google.script.run.withSuccessHandler(function () {
+            loadClients();
+            loadClientsForTripForm();
+          }).withFailureHandler(function (err) {
+            alert(err.message || String(err));
+          }).deactivateClient(btn.getAttribute('data-deactivate'));
+        });
+      });
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getClients(true);
+  }
+
+  $('client-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('client-submit');
+    var msg = $('client-msg');
+    clearMsg(msg);
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(function () {
+      btn.disabled = false;
+      showMsg(msg, 'Client added.', false);
+      $('client-form').reset();
+      loadClients();
+      loadClientsForTripForm();
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    }).addClient({
+      name: $('client-name').value,
+      contactPerson: $('client-contact').value,
+      phone: $('client-phone').value,
+      email: $('client-email').value,
+      address: $('client-address').value
+    });
+  });
+
+  /* ---------- New Trip ---------- */
+
+  function prefillTripFeesFromSettings() {
+    if (!STATE.settings) return;
+    $('trip-toll').value = STATE.settings.defaultTollFee;
+    $('trip-zrp').value = STATE.settings.defaultZrpFee;
+    $('trip-vid').value = STATE.settings.defaultVidFee;
+  }
+
+  function updateTripPreview() {
+    if (!STATE.settings) return;
+    var distance = Number($('trip-distance').value) || 0;
+    var toll = Number($('trip-toll').value) || 0;
+    var zrp = Number($('trip-zrp').value) || 0;
+    var vid = Number($('trip-vid').value) || 0;
+    var other = Number($('trip-other-amount').value) || 0;
+
+    var roundTrip = distance * 2;
+    var fuelCost = roundTrip * STATE.settings.fuelRatePerKm;
+    var misc = toll + zrp + vid + other;
+    var total = fuelCost + misc;
+
+    $('cs-distance').textContent = roundTrip.toFixed(2) + ' km';
+    $('cs-fuel').textContent = money(fuelCost);
+    $('cs-misc').textContent = money(misc);
+    $('cs-total').textContent = money(total);
+  }
+
+  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount'].forEach(function (id) {
+    $(id).addEventListener('input', updateTripPreview);
+  });
+
+  $('trip-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('trip-submit');
+    var msg = $('trip-msg');
+    clearMsg(msg);
+
+    if (!$('trip-client').value) {
+      showMsg(msg, 'Add a client before costing a trip.', true);
+      return;
+    }
+
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(function (result) {
+      btn.disabled = false;
+      showMsg(msg, 'Trip saved - total cost ' + money(result.trip.totalCost) + '.', false);
+      $('trip-form').reset();
+      prefillTripFeesFromSettings();
+      updateTripPreview();
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    }).saveTrip({
+      clientId: $('trip-client').value,
+      destination: $('trip-destination').value,
+      oneWayDistanceKm: Number($('trip-distance').value),
+      tollFee: Number($('trip-toll').value) || 0,
+      zrpFee: Number($('trip-zrp').value) || 0,
+      vidFee: Number($('trip-vid').value) || 0,
+      otherFeesDescription: $('trip-other-desc').value,
+      otherFeesAmount: Number($('trip-other-amount').value) || 0,
+      notes: $('trip-notes').value
+    });
+  });
+
+  /* ---------- Trip History ---------- */
+
+  function loadTripHistory() {
+    var wrap = $('history-table-wrap');
+    var sub = $('history-sub');
+    google.script.run.withSuccessHandler(function (trips) {
+      sub.textContent = trips.length + ' trip' + (trips.length === 1 ? '' : 's') + ' costed.';
+      if (!trips.length) {
+        wrap.innerHTML = '<div class="empty-state">No trips costed yet.</div>';
+        return;
+      }
+      var rows = trips.map(function (t) {
+        return '<tr>' +
+          '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
+          '<td>' + escapeHtml(t.clientName) + '</td>' +
+          '<td>' + escapeHtml(t.destination) + '</td>' +
+          '<td>' + t.roundTripDistanceKm.toFixed(2) + ' km</td>' +
+          '<td>' + money(t.fuelCost) + '</td>' +
+          '<td>' + money(t.totalMiscFees) + '</td>' +
+          '<td><strong>' + money(t.totalCost) + '</strong></td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Round trip</th><th>Fuel</th><th>Misc fees</th><th>Total</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getTrips({});
+  }
+
+  loadInitialData();
+</script>
