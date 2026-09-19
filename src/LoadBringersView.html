@@ -1,0 +1,33 @@
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Load Bringers</h1>
+    <p class="page-sub">People paid a load levy for supplying a load on a trip. Totals below are what's owed for month-end payout.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3 id="bringer-form-title">Add load bringer</h3>
+  <form id="bringer-form">
+    <input type="hidden" id="bringer-id">
+    <div class="form-grid">
+      <div class="field">
+        <label for="bringer-name">Name</label>
+        <input id="bringer-name" type="text" required>
+      </div>
+      <div class="field">
+        <label for="bringer-phone">Phone</label>
+        <input id="bringer-phone" type="text">
+      </div>
+    </div>
+    <button type="submit" class="btn primary" id="bringer-submit">Add load bringer</button>
+    <button type="button" class="btn ghost" id="bringer-cancel-edit" hidden>Cancel</button>
+    <div class="msg" id="bringer-msg"></div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>All load bringers</h3>
+  <div class="table-wrap" id="bringers-table-wrap">
+    <div class="empty-state">Loading load bringers&hellip;</div>
+  </div>
+</div>

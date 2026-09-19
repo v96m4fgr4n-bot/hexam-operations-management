@@ -3,25 +3,34 @@
  * OneWayDistanceKm | RoundTripDistanceKm |
  * FuelPricePerLitre | FuelConsumptionKmPerL | FuelRatePerKm | FuelCost |
  * TollFee | ZrpFee | VidFee | OtherFeesDescription | OtherFeesAmount | TripExpenses |
- * Subtotal | MarginPercent | MarginAmount | TotalCost |
+ * Subtotal | MarginPercent | MarginAmount |
+ * LoadBringerId | LoadBringerName | LoadLevyAmount |
+ * TotalBeforeDiscount | DiscountAmount | DiscountReason | TotalCost |
  * Notes | CreatedAt
  *
  * Quote build-up (all client-facing pricing derives from Settings, never
  * from a client-submitted number):
- *   fuelRatePerKm = fuelPricePerLitre / fuelConsumptionKmPerL
- *   fuelCost      = roundTripDistanceKm x fuelRatePerKm
- *   tripExpenses  = tollFee + zrpFee + vidFee + otherFeesAmount
- *   subtotal      = fuelCost + tripExpenses
- *   marginAmount  = subtotal x (companyMarginPercent / 100)
- *   totalCost     = subtotal + marginAmount   <- the quote given to the client
+ *   fuelRatePerKm       = fuelPricePerLitre / fuelConsumptionKmPerL
+ *   fuelCost            = roundTripDistanceKm x fuelRatePerKm
+ *   tripExpenses        = tollFee + zrpFee + vidFee + otherFeesAmount
+ *   subtotal            = fuelCost + tripExpenses
+ *   marginAmount        = subtotal x (companyMarginPercent / 100)
+ *   loadLevyAmount      = Settings' LOAD_LEVY_AMOUNT if a load bringer is
+ *                         selected for this trip, else 0 - baked into the
+ *                         client's total (the client covers the referral
+ *                         payout), not absorbed by the company
+ *   totalBeforeDiscount = subtotal + marginAmount + loadLevyAmount
+ *   totalCost           = totalBeforeDiscount - discountAmount   <- the quote given to the client
  */
 
 /**
  * Computes the full quote breakdown. Always re-reads fuel price, fuel
- * consumption, and margin from Settings server-side so a stale client-side
- * value can never be submitted as truth. Does not persist anything.
+ * consumption, margin, and load levy from Settings server-side so a stale
+ * client-side value can never be submitted as truth. Does not persist
+ * anything.
  *
- * input: { oneWayDistanceKm, tollFee, zrpFee, vidFee, otherFeesAmount }
+ * input: { oneWayDistanceKm, tollFee, zrpFee, vidFee, otherFeesAmount,
+ *          loadBringerId, discountAmount, discountReason }
  */
 function computeTripQuote_(input) {
   input = input || {};
@@ -43,7 +52,28 @@ function computeTripQuote_(input) {
   var tripExpenses = round2_(tollFee + zrpFee + vidFee + otherFeesAmount);
   var subtotal = round2_(fuelCost + tripExpenses);
   var marginAmount = round2_(subtotal * settings.companyMarginPercent / 100);
-  var totalCost = round2_(subtotal + marginAmount);
+
+  var loadBringerId = String(input.loadBringerId || '').trim();
+  var loadBringerName = '';
+  var loadLevyAmount = 0;
+  if (loadBringerId) {
+    var loadBringer = getLoadBringer(loadBringerId);
+    if (!loadBringer || !loadBringer.active) {
+      throw new Error('Selected load bringer is not valid or is no longer active.');
+    }
+    loadBringerName = loadBringer.name;
+    loadLevyAmount = settings.loadLevyAmount;
+  }
+
+  var totalBeforeDiscount = round2_(subtotal + marginAmount + loadLevyAmount);
+
+  var discountAmount = validateNonNegativeNumber_(input.discountAmount || 0, 'Discount');
+  if (discountAmount > totalBeforeDiscount) {
+    throw new Error('Discount cannot be more than the quote total.');
+  }
+  var discountReason = String(input.discountReason || '').trim();
+
+  var totalCost = round2_(totalBeforeDiscount - discountAmount);
 
   return {
     oneWayDistanceKm: oneWayDistanceKm,
@@ -60,6 +90,12 @@ function computeTripQuote_(input) {
     subtotal: subtotal,
     marginPercent: settings.companyMarginPercent,
     marginAmount: marginAmount,
+    loadBringerId: loadBringerId,
+    loadBringerName: loadBringerName,
+    loadLevyAmount: loadLevyAmount,
+    totalBeforeDiscount: totalBeforeDiscount,
+    discountAmount: discountAmount,
+    discountReason: discountReason,
     totalCost: totalCost,
     currencySymbol: settings.currencySymbol
   };
@@ -74,7 +110,8 @@ function getTripQuote(input) {
  * Validates, computes, and persists a trip record.
  *
  * tripInput: { clientId, destination, oneWayDistanceKm, tollFee, zrpFee, vidFee,
- *              otherFeesDescription, otherFeesAmount, notes }
+ *              otherFeesDescription, otherFeesAmount, loadBringerId,
+ *              discountAmount, discountReason, notes }
  */
 function saveTrip(tripInput) {
   tripInput = tripInput || {};
@@ -99,7 +136,9 @@ function saveTrip(tripInput) {
     quote.oneWayDistanceKm, quote.roundTripDistanceKm,
     quote.fuelPricePerLitre, quote.fuelConsumptionKmPerL, quote.fuelRatePerKm, quote.fuelCost,
     quote.tollFee, quote.zrpFee, quote.vidFee, otherFeesDescription, quote.otherFeesAmount, quote.tripExpenses,
-    quote.subtotal, quote.marginPercent, quote.marginAmount, quote.totalCost,
+    quote.subtotal, quote.marginPercent, quote.marginAmount,
+    quote.loadBringerId, quote.loadBringerName, quote.loadLevyAmount,
+    quote.totalBeforeDiscount, quote.discountAmount, quote.discountReason, quote.totalCost,
     notes, now
   ]);
 
@@ -113,7 +152,10 @@ function saveTrip(tripInput) {
       TollFee: quote.tollFee, ZrpFee: quote.zrpFee, VidFee: quote.vidFee,
       OtherFeesDescription: otherFeesDescription, OtherFeesAmount: quote.otherFeesAmount,
       TripExpenses: quote.tripExpenses, Subtotal: quote.subtotal,
-      MarginPercent: quote.marginPercent, MarginAmount: quote.marginAmount, TotalCost: quote.totalCost,
+      MarginPercent: quote.marginPercent, MarginAmount: quote.marginAmount,
+      LoadBringerId: quote.loadBringerId, LoadBringerName: quote.loadBringerName, LoadLevyAmount: quote.loadLevyAmount,
+      TotalBeforeDiscount: quote.totalBeforeDiscount, DiscountAmount: quote.discountAmount,
+      DiscountReason: quote.discountReason, TotalCost: quote.totalCost,
       Notes: notes, CreatedAt: now
     })
   };
@@ -141,6 +183,12 @@ function tripRowToObject_(row) {
     subtotal: Number(row.Subtotal),
     marginPercent: Number(row.MarginPercent),
     marginAmount: Number(row.MarginAmount),
+    loadBringerId: row.LoadBringerId || '',
+    loadBringerName: row.LoadBringerName || '',
+    loadLevyAmount: Number(row.LoadLevyAmount) || 0,
+    totalBeforeDiscount: Number(row.TotalBeforeDiscount),
+    discountAmount: Number(row.DiscountAmount) || 0,
+    discountReason: row.DiscountReason || '',
     totalCost: Number(row.TotalCost),
     notes: row.Notes || '',
     createdAt: row.CreatedAt

@@ -31,15 +31,31 @@ fuel cost                 = round-trip distance x fuel rate per km
 trip expenses              = toll fee + ZRP fee + VID fee (+ optional other fee)
 subtotal                  = fuel cost + trip expenses
 margin amount              = subtotal x (company margin % / 100)
-quote total                = subtotal + margin amount
+load levy                  = Settings' load levy amount, IF a load bringer is
+                            selected for this trip, else 0
+total before discount      = subtotal + margin amount + load levy
+quote total                = total before discount − discount amount
 ```
 
 Toll/ZRP/VID fees default to values in **Settings** but can be overridden
 per trip. Every amount is rounded to cents at each stage. The full quote
 is always recomputed server-side from the raw inputs (client, distance,
-fee overrides) at save time, reading fuel price/consumption/margin fresh
-from Settings — a live preview updates as you type client-side, but that
-preview is never trusted as the value that gets written to the record.
+fee overrides, load bringer, discount) at save time, reading fuel price/
+consumption/margin/load levy fresh from Settings — a live preview updates
+as you type client-side, but that preview is never trusted as the value
+that gets written to the record.
+
+**Load levy**: when a trip's load was referred to Hexam by someone (a
+"load bringer"), the configured levy is added to *that client's* total —
+the client covers the referral payout, the company doesn't absorb it. The
+Load Bringers screen shows a running tally (loads brought + total owed)
+per bringer for month-end payout, derived live from Trips — it's not a
+paid/unpaid ledger, so once someone is paid there's currently no way to
+mark that in the app.
+
+**Discount**: an optional flat amount taken off a trip's total (revealed by
+an "Add discount" button on the New Trip screen), validated so it can never
+exceed the pre-discount total.
 
 ## Sheets
 
@@ -54,6 +70,7 @@ Settings screen):
 | `DEFAULT_ZRP_FEE` | 0 | Default ZRP fee, overridable per trip |
 | `DEFAULT_VID_FEE` | 0 | Default VID fee, overridable per trip |
 | `COMPANY_MARGIN_PERCENT` | 15 | Margin applied to (fuel cost + trip expenses) to produce the quote |
+| `LOAD_LEVY_AMOUNT` | 10 | Paid to whoever brought the load; added to the client's total when a load bringer is selected |
 | `CURRENCY_SYMBOL` | `$` | Symbol shown next to amounts (display only) |
 
 **Clients**: ClientId, ClientName, ContactPerson, Phone, Email, Address,
@@ -62,14 +79,20 @@ the Clients screen) rather than removed, since historical trips reference
 them by ID and must keep working even if a client goes inactive. Trips
 can only be quoted for an active client.
 
+**LoadBringers**: LoadBringerId, Name, Phone, Active, CreatedAt. Same
+soft-delete pattern as Clients. Selecting one on a trip (optional) bakes
+the load levy into that trip's total and is what `getLoadBringerSummary()`
+groups by for the month-end payout tally.
+
 **Trips** (append-only log written by the web app): TripId, TripDate,
 ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,
 FuelPricePerLitre, FuelConsumptionKmPerL, FuelRatePerKm, FuelCost,
 TollFee, ZrpFee, VidFee, OtherFeesDescription, OtherFeesAmount,
-TripExpenses, Subtotal, MarginPercent, MarginAmount, TotalCost, Notes,
-CreatedAt.
+TripExpenses, Subtotal, MarginPercent, MarginAmount, LoadBringerId,
+LoadBringerName, LoadLevyAmount, TotalBeforeDiscount, DiscountAmount,
+DiscountReason, TotalCost, Notes, CreatedAt.
 
-All three sheets, and any Settings keys not yet present, are created/added
+All sheets, and any Settings keys not yet present, are created/added
 automatically the first time the web app is opened (`initializeSpreadsheet`,
 called from `doGet()`). It's additive and idempotent — it never overwrites
 a value someone has already edited, and can also be run manually from the
@@ -86,6 +109,9 @@ src/
   SettingsService.gs      getSettings / updateSettings
   ClientService.gs        getClients / getClient / addClient / updateClient /
                           deactivateClient / reactivateClient
+  LoadBringerService.gs    getLoadBringers / getLoadBringer / addLoadBringer /
+                          updateLoadBringer / deactivateLoadBringer /
+                          reactivateLoadBringer / getLoadBringerSummary
   TripService.gs          computeTripQuote_ / getTripQuote / saveTrip / getTrips
   Index.html               Sidebar+topbar shell (mobile-collapsible)
   CSS.html                 Hexham Bricks-branded styles
@@ -93,6 +119,7 @@ src/
   NewTripView.html         New Trip screen
   TripHistoryView.html     Trip History screen
   ClientsView.html          Clients screen (add/edit/deactivate/reactivate)
+  LoadBringersView.html    Load Bringers screen (add/edit/deactivate/reactivate + payout tally)
   SettingsView.html        Settings screen
 ```
 

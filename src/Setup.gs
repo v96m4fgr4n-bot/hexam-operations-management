@@ -15,12 +15,18 @@ function initializeSpreadsheet() {
     'ClientId', 'ClientName', 'ContactPerson', 'Phone', 'Email', 'Address', 'Active', 'CreatedAt'
   ]);
 
+  ensureSheetWithHeaders_(ss, 'LoadBringers', [
+    'LoadBringerId', 'Name', 'Phone', 'Active', 'CreatedAt'
+  ]);
+
   ensureSheetWithHeaders_(ss, 'Trips', [
     'TripId', 'TripDate', 'ClientId', 'ClientName', 'Destination',
     'OneWayDistanceKm', 'RoundTripDistanceKm',
     'FuelPricePerLitre', 'FuelConsumptionKmPerL', 'FuelRatePerKm', 'FuelCost',
     'TollFee', 'ZrpFee', 'VidFee', 'OtherFeesDescription', 'OtherFeesAmount', 'TripExpenses',
-    'Subtotal', 'MarginPercent', 'MarginAmount', 'TotalCost',
+    'Subtotal', 'MarginPercent', 'MarginAmount',
+    'LoadBringerId', 'LoadBringerName', 'LoadLevyAmount',
+    'TotalBeforeDiscount', 'DiscountAmount', 'DiscountReason', 'TotalCost',
     'Notes', 'CreatedAt'
   ]);
 
@@ -94,6 +100,7 @@ function seedDefaultSettings_(sheet) {
     ['DEFAULT_ZRP_FEE', 0, 'Default ZRP fee applied to a new trip'],
     ['DEFAULT_VID_FEE', 0, 'Default VID fee applied to a new trip'],
     ['COMPANY_MARGIN_PERCENT', 15, 'Margin percentage applied on top of fuel cost + trip expenses to produce the client quote'],
+    ['LOAD_LEVY_AMOUNT', 10, 'Amount paid to whoever brought the load on a trip - added to the client total when a load bringer is selected for that trip'],
     ['CURRENCY_SYMBOL', '$', 'Currency symbol used for display only']
   ];
   var obsoleteKeys = { FUEL_RATE_PER_KM: true, FUEL_CONSUMPTION_L_PER_KM: true };

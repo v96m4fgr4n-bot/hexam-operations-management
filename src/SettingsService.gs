@@ -9,6 +9,7 @@ var SETTINGS_KEY_MAP = {
   defaultZrpFee: 'DEFAULT_ZRP_FEE',
   defaultVidFee: 'DEFAULT_VID_FEE',
   companyMarginPercent: 'COMPANY_MARGIN_PERCENT',
+  loadLevyAmount: 'LOAD_LEVY_AMOUNT',
   currencySymbol: 'CURRENCY_SYMBOL'
 };
 
@@ -31,6 +32,7 @@ function getSettings() {
     defaultZrpFee: Number(byKey.DEFAULT_ZRP_FEE) || 0,
     defaultVidFee: Number(byKey.DEFAULT_VID_FEE) || 0,
     companyMarginPercent: Number(byKey.COMPANY_MARGIN_PERCENT) || 0,
+    loadLevyAmount: Number(byKey.LOAD_LEVY_AMOUNT) || 0,
     currencySymbol: byKey.CURRENCY_SYMBOL || '$'
   };
 }

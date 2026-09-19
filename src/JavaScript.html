@@ -1,5 +1,5 @@
 <script>
-  var STATE = { settings: null, clients: [], editingClientId: null };
+  var STATE = { settings: null, clients: [], editingClientId: null, editingLoadBringerId: null };
 
   function $(id) { return document.getElementById(id); }
 
@@ -37,6 +37,7 @@
 
     if (viewName === 'trip-history') loadTripHistory();
     if (viewName === 'clients') loadClients();
+    if (viewName === 'load-bringers') loadLoadBringers();
   }
 
   function openSidebar() {
@@ -72,6 +73,7 @@
     }).getSettings();
 
     loadClientsForTripForm();
+    loadLoadBringersForTripForm();
   }
 
   /* ---------- Settings ---------- */
@@ -85,6 +87,7 @@
     $('settings-zrp').value = settings.defaultZrpFee;
     $('settings-vid').value = settings.defaultVidFee;
     $('settings-margin').value = settings.companyMarginPercent;
+    $('settings-load-levy').value = settings.loadLevyAmount;
   }
 
   function fuelRatePreview_(price, consumption) {
@@ -124,7 +127,8 @@
       defaultTollFee: Number($('settings-toll').value),
       defaultZrpFee: Number($('settings-zrp').value),
       defaultVidFee: Number($('settings-vid').value),
-      companyMarginPercent: Number($('settings-margin').value)
+      companyMarginPercent: Number($('settings-margin').value),
+      loadLevyAmount: Number($('settings-load-levy').value)
     });
   });
 
@@ -258,6 +262,128 @@
     }
   });
 
+  /* ---------- Load Bringers ---------- */
+
+  function loadLoadBringersForTripForm() {
+    google.script.run.withSuccessHandler(function (bringers) {
+      var select = $('trip-load-bringer');
+      select.innerHTML = '<option value="">None</option>' +
+        bringers.map(function (b) { return '<option value="' + escapeHtml(b.id) + '">' + escapeHtml(b.name) + '</option>'; }).join('');
+    }).withFailureHandler(function (err) {
+      showMsg($('trip-msg'), err.message || String(err), true);
+    }).getLoadBringers(false);
+  }
+
+  function loadLoadBringers() {
+    var wrap = $('bringers-table-wrap');
+    google.script.run.withSuccessHandler(function (bringers) {
+      if (!bringers.length) {
+        wrap.innerHTML = '<div class="empty-state">No load bringers yet. Add one above.</div>';
+        return;
+      }
+      var rows = bringers.map(function (b) {
+        return '<tr>' +
+          '<td>' + escapeHtml(b.name) + '</td>' +
+          '<td>' + escapeHtml(b.phone) + '</td>' +
+          '<td><span class="badge ' + (b.active ? 'ok' : 'neutral') + '">' + (b.active ? 'Active' : 'Inactive') + '</span></td>' +
+          '<td>' + b.tripCount + '</td>' +
+          '<td><strong>' + money(b.totalOwed) + '</strong></td>' +
+          '<td>' +
+            '<button class="btn sm ghost" data-edit="' + escapeHtml(b.id) + '">Edit</button> ' +
+            (b.active
+              ? '<button class="btn sm danger" data-deactivate="' + escapeHtml(b.id) + '">Deactivate</button>'
+              : '<button class="btn sm" data-reactivate="' + escapeHtml(b.id) + '">Reactivate</button>') +
+          '</td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML = '<table><thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Loads brought</th><th>Total owed</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+
+      wrap.querySelectorAll('[data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var bringer = bringers.filter(function (b) { return b.id === btn.getAttribute('data-edit'); })[0];
+          if (bringer) startEditLoadBringer(bringer);
+        });
+      });
+      wrap.querySelectorAll('[data-deactivate]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('Deactivate this load bringer? Past trips are kept.')) return;
+          setLoadBringerActive_(btn.getAttribute('data-deactivate'), 'deactivateLoadBringer');
+        });
+      });
+      wrap.querySelectorAll('[data-reactivate]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setLoadBringerActive_(btn.getAttribute('data-reactivate'), 'reactivateLoadBringer');
+        });
+      });
+    }).withFailureHandler(function (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
+    }).getLoadBringerSummary();
+  }
+
+  function setLoadBringerActive_(loadBringerId, fnName) {
+    google.script.run.withSuccessHandler(function () {
+      loadLoadBringers();
+      loadLoadBringersForTripForm();
+    }).withFailureHandler(function (err) {
+      alert(err.message || String(err));
+    })[fnName](loadBringerId);
+  }
+
+  function startEditLoadBringer(bringer) {
+    STATE.editingLoadBringerId = bringer.id;
+    $('bringer-form-title').textContent = 'Edit load bringer';
+    $('bringer-id').value = bringer.id;
+    $('bringer-name').value = bringer.name;
+    $('bringer-phone').value = bringer.phone;
+    $('bringer-submit').textContent = 'Save changes';
+    $('bringer-cancel-edit').hidden = false;
+    $('bringer-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function resetLoadBringerForm() {
+    STATE.editingLoadBringerId = null;
+    $('bringer-form-title').textContent = 'Add load bringer';
+    $('bringer-form').reset();
+    $('bringer-id').value = '';
+    $('bringer-submit').textContent = 'Add load bringer';
+    $('bringer-cancel-edit').hidden = true;
+  }
+
+  $('bringer-cancel-edit').addEventListener('click', resetLoadBringerForm);
+
+  $('bringer-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('bringer-submit');
+    var msg = $('bringer-msg');
+    clearMsg(msg);
+    btn.disabled = true;
+
+    var bringerData = {
+      name: $('bringer-name').value,
+      phone: $('bringer-phone').value
+    };
+
+    var onDone = function () {
+      btn.disabled = false;
+      showMsg(msg, STATE.editingLoadBringerId ? 'Load bringer updated.' : 'Load bringer added.', false);
+      resetLoadBringerForm();
+      loadLoadBringers();
+      loadLoadBringersForTripForm();
+    };
+    var onFail = function (err) {
+      btn.disabled = false;
+      showMsg(msg, err.message || String(err), true);
+    };
+
+    if (STATE.editingLoadBringerId) {
+      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail)
+        .updateLoadBringer(STATE.editingLoadBringerId, bringerData);
+    } else {
+      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail)
+        .addLoadBringer(bringerData);
+    }
+  });
+
   /* ---------- New Trip ---------- */
 
   function prefillTripFeesFromSettings() {
@@ -267,6 +393,18 @@
     $('trip-vid').value = STATE.settings.defaultVidFee;
   }
 
+  $('trip-discount-toggle').addEventListener('click', function () {
+    var fields = $('trip-discount-fields');
+    var showing = !fields.hidden;
+    if (showing) {
+      $('trip-discount-amount').value = 0;
+      $('trip-discount-reason').value = '';
+    }
+    fields.hidden = showing;
+    this.textContent = showing ? '+ Add discount' : '- Remove discount';
+    updateTripPreview();
+  });
+
   function updateTripPreview() {
     if (!STATE.settings) return;
     var distance = Number($('trip-distance').value) || 0;
@@ -274,6 +412,10 @@
     var zrp = Number($('trip-zrp').value) || 0;
     var vid = Number($('trip-vid').value) || 0;
     var other = Number($('trip-other-amount').value) || 0;
+    var loadBringerId = $('trip-load-bringer').value;
+    var loadBringerName = loadBringerId ? $('trip-load-bringer').selectedOptions[0].textContent : '';
+    var discountShown = !$('trip-discount-fields').hidden;
+    var discount = discountShown ? (Number($('trip-discount-amount').value) || 0) : 0;
 
     var roundTrip = distance * 2;
     var fuelRate = STATE.settings.fuelConsumptionKmPerL > 0
@@ -284,7 +426,9 @@
     var subtotal = fuelCost + tripExpenses;
     var marginPercent = STATE.settings.companyMarginPercent;
     var marginAmount = subtotal * marginPercent / 100;
-    var total = subtotal + marginAmount;
+    var levyAmount = loadBringerId ? STATE.settings.loadLevyAmount : 0;
+    var totalBeforeDiscount = subtotal + marginAmount + levyAmount;
+    var total = totalBeforeDiscount - discount;
 
     $('cs-distance').textContent = roundTrip.toFixed(2) + ' km';
     $('cs-fuel-rate').textContent = money(fuelRate) + ' / km';
@@ -293,11 +437,24 @@
     $('cs-subtotal').textContent = money(subtotal);
     $('cs-margin-label').textContent = 'Margin (' + marginPercent + '%)';
     $('cs-margin').textContent = money(marginAmount);
+
+    $('cs-levy-row').hidden = !loadBringerId;
+    if (loadBringerId) {
+      $('cs-levy-label').textContent = 'Load levy (' + loadBringerName + ')';
+      $('cs-levy').textContent = money(levyAmount);
+    }
+
+    $('cs-before-discount-row').hidden = !(discount > 0);
+    if (discount > 0) $('cs-before-discount').textContent = money(totalBeforeDiscount);
+    $('cs-discount-row').hidden = !(discount > 0);
+    if (discount > 0) $('cs-discount').textContent = '−' + money(discount);
+
     $('cs-total').textContent = money(total);
   }
 
-  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount'].forEach(function (id) {
+  ['trip-distance', 'trip-toll', 'trip-zrp', 'trip-vid', 'trip-other-amount', 'trip-load-bringer', 'trip-discount-amount'].forEach(function (id) {
     $(id).addEventListener('input', updateTripPreview);
+    $(id).addEventListener('change', updateTripPreview);
   });
 
   $('trip-form').addEventListener('submit', function (e) {
@@ -313,10 +470,14 @@
 
     btn.disabled = true;
 
+    var discountShown = !$('trip-discount-fields').hidden;
+
     google.script.run.withSuccessHandler(function (result) {
       btn.disabled = false;
       showMsg(msg, 'Trip saved - quote total ' + money(result.trip.totalCost) + '.', false);
       $('trip-form').reset();
+      $('trip-discount-fields').hidden = true;
+      $('trip-discount-toggle').textContent = '+ Add discount';
       prefillTripFeesFromSettings();
       updateTripPreview();
     }).withFailureHandler(function (err) {
@@ -331,6 +492,9 @@
       vidFee: Number($('trip-vid').value) || 0,
       otherFeesDescription: $('trip-other-desc').value,
       otherFeesAmount: Number($('trip-other-amount').value) || 0,
+      loadBringerId: $('trip-load-bringer').value,
+      discountAmount: discountShown ? (Number($('trip-discount-amount').value) || 0) : 0,
+      discountReason: discountShown ? $('trip-discount-reason').value : '',
       notes: $('trip-notes').value
     });
   });
@@ -355,10 +519,12 @@
           '<td>' + money(t.fuelCost) + '</td>' +
           '<td>' + money(t.tripExpenses) + '</td>' +
           '<td>' + money(t.marginAmount) + ' (' + t.marginPercent + '%)</td>' +
+          '<td>' + (t.loadBringerName ? escapeHtml(t.loadBringerName) + ' (' + money(t.loadLevyAmount) + ')' : '&mdash;') + '</td>' +
+          '<td>' + (t.discountAmount > 0 ? '−' + money(t.discountAmount) : '&mdash;') + '</td>' +
           '<td><strong>' + money(t.totalCost) + '</strong></td>' +
           '</tr>';
       }).join('');
-      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Round trip</th><th>Fuel</th><th>Expenses</th><th>Margin</th><th>Quote</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Round trip</th><th>Fuel</th><th>Expenses</th><th>Margin</th><th>Load bringer (levy)</th><th>Discount</th><th>Quote</th></tr></thead><tbody>' + rows + '</tbody></table>';
     }).withFailureHandler(function (err) {
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
     }).getTrips({});

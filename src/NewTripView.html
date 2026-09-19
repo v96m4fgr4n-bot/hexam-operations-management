@@ -52,9 +52,34 @@
       </div>
     </div>
 
+    <h3 style="margin-top:20px;">Load Bringer (optional)</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="trip-load-bringer">
+          Referred by
+          <span class="hint">If this load came from someone who referred it to us, the load levy is added to the client's total and paid out to them</span>
+        </label>
+        <select id="trip-load-bringer">
+          <option value="">None</option>
+        </select>
+      </div>
+    </div>
+
     <div class="field full">
       <label for="trip-notes">Notes (optional)</label>
       <textarea id="trip-notes"></textarea>
+    </div>
+
+    <button type="button" class="btn ghost" id="trip-discount-toggle">+ Add discount</button>
+    <div class="form-grid" id="trip-discount-fields" hidden style="margin-top:12px;">
+      <div class="field">
+        <label for="trip-discount-amount">Discount amount</label>
+        <input id="trip-discount-amount" type="number" min="0" step="0.01" value="0">
+      </div>
+      <div class="field">
+        <label for="trip-discount-reason">Reason (optional)</label>
+        <input id="trip-discount-reason" type="text" placeholder="e.g. repeat client">
+      </div>
     </div>
 
     <div class="cost-summary" id="trip-cost-summary">
@@ -65,6 +90,9 @@
       <div class="divider"></div>
       <div class="line subtle"><span>Subtotal</span><span id="cs-subtotal">-</span></div>
       <div class="line"><span id="cs-margin-label">Margin</span><span id="cs-margin">-</span></div>
+      <div class="line" id="cs-levy-row" hidden><span id="cs-levy-label">Load levy</span><span id="cs-levy">-</span></div>
+      <div class="line subtle" id="cs-before-discount-row" hidden><span>Total before discount</span><span id="cs-before-discount">-</span></div>
+      <div class="line" id="cs-discount-row" hidden><span>Discount</span><span id="cs-discount">-</span></div>
       <div class="line total"><span>Quote total</span><span id="cs-total">-</span></div>
     </div>
 

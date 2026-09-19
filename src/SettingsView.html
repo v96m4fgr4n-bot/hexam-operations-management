@@ -63,6 +63,17 @@
       </div>
     </div>
 
+    <h3 style="margin-top:20px;">Load Levy</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="settings-load-levy">
+          Load levy amount
+          <span class="hint">Paid to whoever brought the load, when selected on a trip &mdash; added to that client's total</span>
+        </label>
+        <input id="settings-load-levy" type="number" min="0" step="0.01" required>
+      </div>
+    </div>
+
     <button type="submit" class="btn primary" id="settings-submit">Save settings</button>
     <div class="msg" id="settings-msg"></div>
   </form>
