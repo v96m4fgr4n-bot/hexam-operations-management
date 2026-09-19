@@ -28,7 +28,6 @@ src/
   Index.html           SPA shell (topbar + sidebar + views)
   CSS.html             Styles
   JavaScript.html      Client-side logic (google.script.run wiring)
-  Logo.html            Base64-encoded Hexham Bricks logo (used inline)
   NewTripView.html      "New Trip" form + live cost preview
   TripHistoryView.html  Trip history table
   ClientsView.html      Client list + add-client form
