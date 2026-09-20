@@ -64,6 +64,17 @@ spreadsheet.
   Repair / Offline), and driver-to-truck assignment. Adding/editing a
   truck, trailer, or driver opens in a popup dialog rather than an inline
   form.
+
+  **Loading mechanism**: trucks/trailers/drivers (here, and the driver
+  dropdown on New Trip) are fetched via a plain `fetch()` GET request to
+  this app's own URL with `?api=trucks`/`trailers`/`drivers` (handled by
+  `runApi_()` in `Code.gs`, returning JSON), not `google.script.run`.
+  `google.script.run`'s background-call channel proved unreliable for
+  these specific calls in the field — some calls never resolved at all,
+  reproduced across iOS Safari (LTE and Wi-Fi) and desktop Chrome, while
+  a direct page load of the same server function always worked. Writes
+  (`saveTrip`, `addTruck`, etc.) still use `google.script.run`, which
+  hasn't shown this problem.
 - **Audit Log** — every create/update/deactivate/reactivate across
   Clients, Load Bringers, Trips, Fleet, Expenses, and Settings, with who
   (signed-in user email) and when.

@@ -5,6 +5,24 @@
     fleetLoaded: { trucks: false, trailers: false, drivers: false }
   };
 
+  var API_BASE_URL_ = window.location.href.split('?')[0];
+
+  /** Plain JSON-over-HTTP call to this app's own web app URL (see
+   *  runApi_ in Code.gs) - used instead of google.script.run for the
+   *  specific read calls (Fleet's trucks/trailers/drivers, New Trip's
+   *  driver dropdown) that have proven unreliable over
+   *  google.script.run's background-call channel in the field. */
+  function fetchApi_(name, params, onSuccess, onFailure) {
+    var url = API_BASE_URL_ + '?api=' + encodeURIComponent(name) + (params ? '&' + params : '');
+    fetch(url, { credentials: 'include' })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (json.success) onSuccess(json.data);
+        else onFailure(new Error(json.error));
+      })
+      .catch(function (err) { onFailure(err); });
+  }
+
   function $(id) { return document.getElementById(id); }
 
   function escapeHtml(s) {
@@ -515,7 +533,7 @@
       }
     }, 12000);
 
-    google.script.run.withSuccessHandler(function (drivers) {
+    fetchApi_('drivers', 'includeInactive=false', function (drivers) {
       if (!fired) clearTimeout(watchdog);
       var select = $('trip-driver');
       var current = select.value;
@@ -523,11 +541,11 @@
         drivers.map(function (d) { return '<option value="' + escapeHtml(d.id) + '">' + escapeHtml(d.name) + '</option>'; }).join('');
       select.value = current;
       if (next) next();
-    }).withFailureHandler(function (err) {
+    }, function (err) {
       if (!fired) clearTimeout(watchdog);
       showMsg($('trip-msg'), err.message || String(err), true);
       if (next) next();
-    }).getDrivers(false);
+    });
   }
 
   function prefillTripFeesFromSettings() {
@@ -1176,7 +1194,7 @@
   function loadTrucks(next) {
     var wrap = $('trucks-table-wrap');
     var clearWatchdog = startLoadWatchdog_(wrap, function () { loadTrucks(next); });
-    google.script.run.withSuccessHandler(function (trucks) {
+    fetchApi_('trucks', null, function (trucks) {
       clearWatchdog();
       STATE.trucks = trucks;
       STATE.fleetLoaded.trucks = true;
@@ -1206,12 +1224,12 @@
         });
       });
       if (next) next();
-    }).withFailureHandler(function (err) {
+    }, function (err) {
       clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
       if (next) next();
-    }).getTrucks();
+    });
   }
 
   function populateDriverTruckSelect_(trucks) {
@@ -1288,7 +1306,7 @@
   function loadTrailers(next) {
     var wrap = $('trailers-table-wrap');
     var clearWatchdog = startLoadWatchdog_(wrap, function () { loadTrailers(next); });
-    google.script.run.withSuccessHandler(function (trailers) {
+    fetchApi_('trailers', null, function (trailers) {
       clearWatchdog();
       STATE.trailers = trailers;
       STATE.fleetLoaded.trailers = true;
@@ -1316,12 +1334,12 @@
         });
       });
       if (next) next();
-    }).withFailureHandler(function (err) {
+    }, function (err) {
       clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
       if (next) next();
-    }).getTrailers();
+    });
   }
 
   function startEditTrailer(trailer) {
@@ -1390,7 +1408,7 @@
   function loadDrivers() {
     var wrap = $('drivers-table-wrap');
     var clearWatchdog = startLoadWatchdog_(wrap, loadDrivers);
-    google.script.run.withSuccessHandler(function (drivers) {
+    fetchApi_('drivers', 'includeInactive=true', function (drivers) {
       clearWatchdog();
       STATE.driversAll = drivers;
       STATE.fleetLoaded.drivers = true;
@@ -1435,11 +1453,11 @@
           setDriverActive_(btn.getAttribute('data-reactivate'), 'reactivateDriver');
         });
       });
-    }).withFailureHandler(function (err) {
+    }, function (err) {
       clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
-    }).getDrivers(true);
+    });
   }
 
   function setDriverActive_(driverId, fnName) {
