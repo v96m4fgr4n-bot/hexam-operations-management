@@ -26,6 +26,30 @@ function getSpreadsheet_() {
   return SpreadsheetApp.openById(id);
 }
 
+/**
+ * TEMPORARY diagnostic - read-only, no side effects. Remove once the
+ * "The string did not match the expected pattern" Fleet error is diagnosed.
+ */
+function debugSpreadsheetProperty_() {
+  var id = PropertiesService.getScriptProperties().getProperty(SPREADSHEET_ID_PROPERTY);
+  var result = {
+    hasId: !!id,
+    idLength: id ? id.length : 0,
+    idPreview: id ? (id.slice(0, 8) + '...' + id.slice(-4)) : null,
+    idTypeofRaw: typeof id
+  };
+  try {
+    var ss = SpreadsheetApp.openById(id);
+    result.openOk = true;
+    result.name = ss.getName();
+    result.sheetNames = ss.getSheets().map(function (s) { return s.getName(); });
+  } catch (err) {
+    result.openOk = false;
+    result.openError = err.message;
+  }
+  return result;
+}
+
 function generateId_(prefix) {
   return prefix + '_' + Utilities.getUuid();
 }

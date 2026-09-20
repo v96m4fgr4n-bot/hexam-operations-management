@@ -3,6 +3,18 @@
  * resolved by ID (see Utils.gs / Setup.gs), not by container binding.
  */
 function doGet(e) {
+  // TEMPORARY - one-shot diagnostic for the "The string did not match the
+  // expected pattern" error now seen on Fleet. Remove once diagnosed.
+  if (e && e.parameter && e.parameter.debug === 'spreadsheetid') {
+    var out;
+    try {
+      out = JSON.stringify(debugSpreadsheetProperty_());
+    } catch (err) {
+      out = JSON.stringify({ fatalError: err.message });
+    }
+    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+  }
+
   initializeSpreadsheet();
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
