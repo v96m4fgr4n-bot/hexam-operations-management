@@ -1,14 +1,14 @@
 # hexam-operations-management
 
 Hexam Bricks operations management — a standalone Google Apps Script web
-app covering trip quoting and accounting. Not bound to a spreadsheet as a
-container; it resolves its backing Google Sheet by ID (see `Utils.gs`).
+app covering trip quoting, accounting, and fleet/driver tracking. Not
+bound to a spreadsheet as a container; it resolves its backing Google
+Sheet by ID (see `Utils.gs`).
 
 Started as a narrow trip-quoting MVP and has grown by direct request into
-a broader ops tool: accounting, a dashboard, and trend charts are all now
-in scope (see "Explicitly out of scope" for what still isn't). Fleet/driver
-tracking was built, then removed after an unresolved `google.script.run`
-loading bug (see git history). Distance is currently entered manually; Google Maps-based
+a broader ops tool: accounting, a dashboard, trend charts, and fleet/driver
+management are all now in scope (see "Explicitly out of scope" for what
+still isn't). Distance is currently entered manually; Google Maps-based
 distance lookup is planned but not yet wired in (needs a Maps Platform API
 key with billing enabled, plus a fixed origin point to measure from).
 
@@ -23,7 +23,7 @@ spreadsheet.
 - **Dashboard** (landing screen) — leads with today's net profit as a single
   large hero figure (color-coded green/red) alongside today's revenue and
   trip count, then a quieter "This month" row and an "Overall" reference
-  list (avg. quote value, active client/bringer counts), then
+  list (avg. quote value, active client/bringer/driver counts), then
   recent trips. Deliberately not ten identical stat cards — today's net
   profit is the one number that matters most on open, so it's visually
   dominant; the rest is proportionally quieter. Net profit is trip margin
@@ -35,7 +35,7 @@ spreadsheet.
   freehand (see below), with a live client-side cost preview. Only the
   fields every trip needs (client, destination, distance, order type,
   toll/ZRP/VID) are visible by default; other fee, other expense, load
-  bringer, and discount are each behind their own
+  bringer, assigned driver, and discount are each behind their own
   "+ Add X" button, matching the pattern each one records — press it,
   fill in the one or two fields it asks for. Nothing typed into a
   since-collapsed section is submitted.
@@ -54,9 +54,30 @@ spreadsheet.
   records one-off business costs (repairs, insurance, salaries, etc. —
   see Expenses below).
 - **Trends** — 14-day revenue/profit and trip-volume charts, top clients
-  by revenue, and top load bringers by loads brought.
+  by revenue, top load bringers by loads brought, and top drivers by trips
+  completed (only trips with a driver assigned on New Trip count).
+- **Fleet** — leads with a hero card: how many trucks/trailers need
+  attention today (not Active status, or roadworthy/service expired or
+  due soon), plus truck/trailer/active-driver counts, computed client-side
+  once all three lists have loaded. Then trucks, trailers, roadworthy/
+  service due dates with expired/due-soon badges, status (Active / In
+  Repair / Offline), and driver-to-truck assignment. Adding/editing a
+  truck, trailer, or driver opens in a popup dialog rather than an inline
+  form.
+
+  **Past loading issue, now fixed**: Fleet's lists (and the driver
+  dropdown on New Trip) used to hang indefinitely via `google.script.run`
+  for one user in the field, on multiple devices/browsers/networks, while
+  the same server functions always worked when hit directly. The actual
+  cause: `doGet` set `setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)`
+  (present since the very first commit, never actually needed - this app
+  is opened directly at its own `/exec` URL, not embedded in another
+  page), which changes framing/postMessage behavior in a way that can
+  break `google.script.run`'s internal iframe bridge, particularly on
+  WebKit/Safari. Removed in `Code.gs`'s `doGet` - do not re-add it unless
+  a real embedding requirement comes up, since that's what broke this.
 - **Audit Log** — every create/update/deactivate/reactivate across
-  Clients, Load Bringers, Trips, Expenses, and Settings, with who
+  Clients, Load Bringers, Trips, Fleet, Expenses, and Settings, with who
   (signed-in user email) and when.
 - **Invoice** — a "Download Invoice" button on New Trip (right after
   saving) and on each Trip History row generates a branded PDF for that
@@ -133,6 +154,11 @@ Hexam incurs for that trip (e.g. a tow, extra fuel) that is deliberately
 *not* billed to the client — it never touches the quote total, it only
 reduces that trip's tracked profit (see "Net profit per trip" below).
 
+**Assigned driver**: New Trip has an optional "Assigned Driver" dropdown,
+picked from Fleet's active driver list (not freehand, since it's a closed
+set). Purely informational — it has no effect on the quote — and shows up
+as a column on Trip History.
+
 **Payment recording**: the quote total is an *estimate* given to the
 client up front. "Record payment" (on each Trip History row) captures what
 was actually collected, separately from the quote — `recordTripPayment()`
@@ -158,12 +184,13 @@ Trends, which stays scoped to trip margin only — so "profit" on
 Accounting/Dashboard can differ from "profit" on Trends by the amount of
 recorded business expenses.
 
-**Popup entry forms**: adding a business expense opens in a small popup
-dialog (a `.modal-overlay`/`.modal-box` pair, closed by its × button, its
-own Cancel button, clicking outside it, or navigating to a different
-screen) rather than an always-visible inline form on the page. Client and
-load bringer entry stay as inline forms/freehand text on their own
-screens, since those are looked at far more frequently.
+**Popup entry forms**: adding a business expense, or adding/editing a
+truck, trailer, or driver, opens in a small popup dialog (a
+`.modal-overlay`/`.modal-box` pair, closed by its × button, its own
+Cancel button, clicking outside it, or navigating to a different screen)
+rather than an always-visible inline form on the page. Client and load
+bringer entry stay as inline forms/freehand text on their own screens,
+since those are looked at far more frequently.
 
 ## Sheets
 
@@ -192,6 +219,22 @@ deactivated creates a fresh client rather than silently reactivating it.
 soft-delete pattern as Clients. `getLoadBringerSummary()` groups by
 bringer for a running paid-total record.
 
+**Trucks**: TruckId, RegNumber, RoadworthyExpiry, NextServiceDue, Status,
+CreatedAt. Status is one of `Active` / `In Repair` / `Offline`. No driver
+field — `getTrucks()` derives the assigned driver (if any) by looking for
+the Driver record whose AssignedTruckId matches, so the assignment always
+has a single source of truth.
+
+**Trailers**: TrailerId, RegNumber, RoadworthyExpiry, NextServiceDue,
+Status, CreatedAt. Same shape as Trucks, tracked as a separate fleet asset
+(no pairing to a specific truck, since trailers can be swapped between
+trucks).
+
+**Drivers**: DriverId, Name, Phone, AssignedTruckId, Active, CreatedAt.
+Soft-deleted like Clients/LoadBringers. Assigning a truck already assigned
+to a different active driver is rejected rather than silently allowing two
+drivers on one truck.
+
 **Expenses**: ExpenseId, ExpenseDate, Category, Description, Amount,
 CreatedBy, CreatedAt. Manual business expenses (see "Business expenses"
 above); deleted outright (no soft-delete) since it's a ledger of one-off
@@ -200,7 +243,8 @@ entries, not a persistent identity record like Clients/LoadBringers.
 **AuditLog**: LogId, Timestamp, UserEmail, Action, EntityType, EntityId,
 Summary. Written by `logAudit_()` (best-effort — a logging failure never
 blocks or fails the action it's recording) from every mutating function
-across Clients, LoadBringers, Trips, Expenses, and Settings.
+across Clients, LoadBringers, Trips, Trucks, Trailers, Drivers, Expenses,
+and Settings.
 
 **Trips** (append-only log written by the web app): TripId, TripDate,
 ClientId, ClientName, Destination, OneWayDistanceKm, RoundTripDistanceKm,
@@ -212,19 +256,16 @@ OtherExpenseAmount, LoadBringerId, LoadBringerName, LoadLevyAmount,
 TotalBeforeDiscount, DiscountAmount, DiscountReason, TotalCost, Notes,
 CreatedAt, DriverId, DriverName, AmountPaid, PaymentRecordedAt.
 OtherExpenseAmount is a real, unbilled trip cost (see "Other fee vs. other
-expense" above). DriverId/DriverName are unused leftovers from the removed
-Fleet feature — always written blank now, kept in place rather than
-reshuffled so existing rows' other columns don't shift. AmountPaid/
-PaymentRecordedAt are written later, by `recordTripPayment()`, once
-payment actually comes in — both are blank/0 on a freshly-saved trip.
+expense" above). DriverId/DriverName is the optional Fleet driver assigned
+to the trip. AmountPaid/PaymentRecordedAt are written later, by
+`recordTripPayment()`, once payment actually comes in — both are blank/0
+on a freshly-saved trip.
 
 All sheets, and any Settings keys not yet present, are created/added
 automatically the first time the web app is opened (`initializeSpreadsheet`,
 called from `doGet()`). It's additive and idempotent — it never overwrites
 a value someone has already edited, and can also be run manually from the
-Apps Script editor. A **Trucks**/**Trailers**/**Drivers** sheet may still
-exist in the spreadsheet from before Fleet was removed — the app no longer
-creates, reads, or writes them; they're safe to ignore or delete manually.
+Apps Script editor.
 
 ## Project layout
 
@@ -244,6 +285,8 @@ src/
   AccountingService.gs    getAccountingSummary(): income/expense roll-up from Trips
   DashboardService.gs      getDashboardSummary(): today/month KPIs, derived live
   TrendsService.gs         getTrendsData(): 14-day trend + top clients/bringers
+  FleetService.gs          Trucks/Trailers/Drivers CRUD, dateStatus_() for
+                          roadworthy/service due badges
   ExpenseService.gs        Manual business expenses: getExpenseCategories /
                           getExpenses / addExpense / deleteExpense
   AuditLogService.gs       logAudit_() / getAuditLog(): who/what/when across
@@ -264,6 +307,7 @@ src/
   AccountingView.html      Accounting screen (income/expense summary,
                           business expenses form + ledger)
   TrendsView.html          Trends screen (revenue/profit/trips charts, top clients/bringers)
+  FleetView.html           Fleet screen (trucks/trailers/drivers)
   AuditLogView.html        Audit Log screen (filterable activity list)
   SettingsView.html        Settings screen
 ```
@@ -294,15 +338,15 @@ auto-detects for those services.
 
 ## Explicitly out of scope
 
-Brick inventory, fleet/driver tracking (built, then removed - see git
-history), dispatch/scheduling, multi-currency conversion, and user
-accounts/roles beyond Workspace-domain access. Automated distance
-calculation via Google Maps is planned (needs a Maps Platform API key
-with billing enabled, and a fixed origin address) but not yet implemented
-— `oneWayDistanceKm` is a manual input for now. The Load Bringers "totals"
-badge is a read-only derived view, not a workflow — there's no "mark levy
-as paid" action; the underlying record is edited directly to update it.
-Invoice **generation** (a branded PDF, per trip)
+Brick inventory, dispatch/scheduling (assigning a specific truck+driver to
+an upcoming trip), multi-currency conversion, and user accounts/roles
+beyond Workspace-domain access. Automated distance calculation via Google
+Maps is planned (needs a Maps Platform API key with billing enabled, and a
+fixed origin address) but not yet implemented — `oneWayDistanceKm` is a
+manual input for now. The Load Bringers/Fleet "totals" and "due" badges
+are read-only derived views, not workflows — there's no "mark levy as
+paid" or "mark service done" action; the underlying date/record is edited
+directly to update them. Invoice **generation** (a branded PDF, per trip)
 is built, but there's no billing/AR **workflow** on top of it — no invoice
 sent/paid/overdue status, no numbering sequence beyond the derived
 `INV-<date>-<id>` scheme, and no accounts-receivable tracking. None of the
