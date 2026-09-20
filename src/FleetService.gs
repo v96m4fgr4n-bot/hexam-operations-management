@@ -53,7 +53,15 @@ function truckRowToObject_(row) {
 function getTrucks() {
   var sheet = getSpreadsheet_().getSheetByName('Trucks');
   var trucks = sheetToObjects_(sheet).map(truckRowToObject_);
-  var drivers = getDrivers(false);
+
+  // A problem reading the Drivers sheet should never also take down the
+  // truck list - driver assignment is enrichment, not the truck's own data.
+  var drivers = [];
+  try {
+    drivers = getDrivers(false);
+  } catch (err) {
+    Logger.log('getTrucks: failed to load drivers for assignment lookup - ' + err.message);
+  }
 
   trucks.forEach(function (t) {
     t.roadworthyStatus = dateStatus_(t.roadworthyExpiry);

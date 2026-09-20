@@ -29,6 +29,26 @@
     el.className = 'msg';
   }
 
+  /** For a google.script.run call that might silently never resolve (a
+   *  hung request shows no error - it just never calls success or
+   *  failure). Starts a timer that replaces the given element's content
+   *  with a retry prompt if it fires; call the returned function from
+   *  both the success and failure handlers to cancel it once the request
+   *  actually completes. */
+  function startLoadWatchdog_(el, retryFn, timeoutMs) {
+    var fired = false;
+    var timer = setTimeout(function () {
+      fired = true;
+      el.innerHTML = '<div class="empty-state">Still loading&hellip; this is taking longer than expected. ' +
+        '<button type="button" class="btn sm ghost" id="' + el.id + '-retry">Try again</button></div>';
+      var retryBtn = $(el.id + '-retry');
+      if (retryBtn) retryBtn.addEventListener('click', retryFn);
+    }, timeoutMs || 12000);
+    return function () {
+      if (!fired) clearTimeout(timer);
+    };
+  }
+
   /* ---------- Modals ---------- */
 
   function openModal(id) { $(id).classList.add('open'); }
@@ -466,13 +486,27 @@
   /* ---------- New Trip ---------- */
 
   function loadDriversForTripForm() {
+    var fired = false;
+    var watchdog = setTimeout(function () {
+      fired = true;
+      var hint = $('trip-driver-fields').querySelector('.hint');
+      if (hint) {
+        hint.innerHTML = 'Driver list is taking longer than expected to load. ' +
+          '<a href="#" id="trip-driver-retry">Try again</a>';
+        var retry = $('trip-driver-retry');
+        if (retry) retry.addEventListener('click', function (e) { e.preventDefault(); loadDriversForTripForm(); });
+      }
+    }, 12000);
+
     google.script.run.withSuccessHandler(function (drivers) {
+      if (!fired) clearTimeout(watchdog);
       var select = $('trip-driver');
       var current = select.value;
       select.innerHTML = '<option value="">No driver assigned</option>' +
         drivers.map(function (d) { return '<option value="' + escapeHtml(d.id) + '">' + escapeHtml(d.name) + '</option>'; }).join('');
       select.value = current;
     }).withFailureHandler(function (err) {
+      if (!fired) clearTimeout(watchdog);
       showMsg($('trip-msg'), err.message || String(err), true);
     }).getDrivers(false);
   }
@@ -1114,11 +1148,13 @@
 
   function loadTrucks() {
     var wrap = $('trucks-table-wrap');
+    var clearWatchdog = startLoadWatchdog_(wrap, loadTrucks);
     google.script.run.withSuccessHandler(function (trucks) {
+      clearWatchdog();
       STATE.trucks = trucks;
       STATE.fleetLoaded.trucks = true;
       try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the truck list itself */ }
-      populateDriverTruckSelect_(trucks);
+      try { populateDriverTruckSelect_(trucks); } catch (selectErr) { /* non-fatal: the driver-form truck select is secondary to the truck list itself */ }
       if (!trucks.length) {
         wrap.innerHTML = '<div class="empty-state">No trucks yet.</div>';
         return;
@@ -1142,6 +1178,7 @@
         });
       });
     }).withFailureHandler(function (err) {
+      clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
     }).getTrucks();
@@ -1220,7 +1257,9 @@
 
   function loadTrailers() {
     var wrap = $('trailers-table-wrap');
+    var clearWatchdog = startLoadWatchdog_(wrap, loadTrailers);
     google.script.run.withSuccessHandler(function (trailers) {
+      clearWatchdog();
       STATE.trailers = trailers;
       STATE.fleetLoaded.trailers = true;
       try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the trailer list itself */ }
@@ -1246,6 +1285,7 @@
         });
       });
     }).withFailureHandler(function (err) {
+      clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
     }).getTrailers();
@@ -1316,7 +1356,9 @@
 
   function loadDrivers() {
     var wrap = $('drivers-table-wrap');
+    var clearWatchdog = startLoadWatchdog_(wrap, loadDrivers);
     google.script.run.withSuccessHandler(function (drivers) {
+      clearWatchdog();
       STATE.driversAll = drivers;
       STATE.fleetLoaded.drivers = true;
       try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the driver list itself */ }
@@ -1361,6 +1403,7 @@
         });
       });
     }).withFailureHandler(function (err) {
+      clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
     }).getDrivers(true);
