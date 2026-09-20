@@ -11,9 +11,9 @@
  * Notes | CreatedAt |
  * DriverId | DriverName | AmountPaid | PaymentRecordedAt
  *
- * DriverId/DriverName: unused (Fleet/driver tracking was removed) - the
- * columns are left in place on existing sheets rather than reshuffled, and
- * are always written blank for new trips.
+ * DriverId/DriverName: the driver assigned to the trip, picked from the
+ * Drivers sheet (Fleet) at save time - optional, purely informational, no
+ * effect on the quote.
  *
  * AmountPaid/PaymentRecordedAt: the quote (TotalCost) is an estimate given
  * up front - AmountPaid is what was actually collected, recorded separately
@@ -160,7 +160,7 @@ function getTripQuote(input) {
  *
  * tripInput: { clientName, clientPhone, destination, oneWayDistanceKm,
  *              tollFee, zrpFee, vidFee, otherFeesDescription, otherFeesAmount,
- *              loadBringerName, discountAmount, discountReason, notes }
+ *              loadBringerName, discountAmount, discountReason, notes, driverId }
  */
 function saveTrip(tripInput) {
   tripInput = tripInput || {};
@@ -180,6 +180,17 @@ function saveTrip(tripInput) {
     quote.loadBringerName = bringer.name;
   }
 
+  // Picked from the Drivers sheet (Fleet), not freehand - purely
+  // informational, so an unrecognized id is rejected rather than silently
+  // dropped.
+  var driverId = String(tripInput.driverId || '').trim();
+  var driverName = '';
+  if (driverId) {
+    var driver = getDriver(driverId);
+    if (!driver) throw new Error('Selected driver was not found.');
+    driverName = driver.name;
+  }
+
   var sheet = getSpreadsheet_().getSheetByName('Trips');
   var id = generateId_('trip');
   var now = new Date();
@@ -195,7 +206,7 @@ function saveTrip(tripInput) {
     loadBringerId, quote.loadBringerName, quote.loadLevyAmount,
     quote.totalBeforeDiscount, quote.discountAmount, quote.discountReason, quote.totalCost,
     notes, now,
-    '', '', 0, ''
+    driverId, driverName, 0, ''
   ]);
 
   logAudit_('CREATE', 'Trip', id, 'Quoted trip for ' + client.name + ' to ' + destination + ' (' + quote.currencySymbol + quote.totalCost.toFixed(2) + ')');
@@ -218,7 +229,7 @@ function saveTrip(tripInput) {
       TotalBeforeDiscount: quote.totalBeforeDiscount, DiscountAmount: quote.discountAmount,
       DiscountReason: quote.discountReason, TotalCost: quote.totalCost,
       Notes: notes, CreatedAt: now,
-      AmountPaid: 0, PaymentRecordedAt: ''
+      DriverId: driverId, DriverName: driverName, AmountPaid: 0, PaymentRecordedAt: ''
     })
   };
 }
@@ -260,6 +271,8 @@ function tripRowToObject_(row) {
     totalCost: Number(row.TotalCost),
     notes: row.Notes || '',
     createdAt: row.CreatedAt,
+    driverId: row.DriverId || '',
+    driverName: row.DriverName || '',
     amountPaid: Number(row.AmountPaid) || 0,
     paymentRecordedAt: row.PaymentRecordedAt || ''
   };

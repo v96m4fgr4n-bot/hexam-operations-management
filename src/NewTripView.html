@@ -71,6 +71,7 @@
       <button type="button" class="btn ghost" id="trip-other-fee-toggle">+ Add other fee</button>
       <button type="button" class="btn ghost" id="trip-expense-toggle">+ Add other expense</button>
       <button type="button" class="btn ghost" id="trip-bringer-toggle">+ Add load bringer</button>
+      <button type="button" class="btn ghost" id="trip-driver-toggle">+ Assign driver</button>
       <button type="button" class="btn ghost" id="trip-discount-toggle">+ Add discount</button>
     </div>
 
@@ -110,6 +111,18 @@
         </label>
         <input id="trip-load-bringer-name" type="text" list="trip-load-bringer-datalist" autocomplete="off">
         <datalist id="trip-load-bringer-datalist"></datalist>
+      </div>
+    </div>
+
+    <div class="form-grid" id="trip-driver-fields" hidden style="margin-top:12px;">
+      <div class="field">
+        <label for="trip-driver">
+          Driver
+          <span class="hint">Picked from the Fleet driver list</span>
+        </label>
+        <select id="trip-driver">
+          <option value="">No driver assigned</option>
+        </select>
       </div>
     </div>
 

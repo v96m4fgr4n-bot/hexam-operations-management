@@ -19,6 +19,18 @@ function initializeSpreadsheet() {
     'LoadBringerId', 'Name', 'Phone', 'Active', 'CreatedAt'
   ]);
 
+  ensureSheetWithHeaders_(ss, 'Trucks', [
+    'TruckId', 'RegNumber', 'RoadworthyExpiry', 'NextServiceDue', 'Status', 'CreatedAt'
+  ]);
+
+  ensureSheetWithHeaders_(ss, 'Trailers', [
+    'TrailerId', 'RegNumber', 'RoadworthyExpiry', 'NextServiceDue', 'Status', 'CreatedAt'
+  ]);
+
+  ensureSheetWithHeaders_(ss, 'Drivers', [
+    'DriverId', 'Name', 'Phone', 'AssignedTruckId', 'Active', 'CreatedAt'
+  ]);
+
   ensureSheetWithHeaders_(ss, 'Expenses', [
     'ExpenseId', 'ExpenseDate', 'Category', 'Description', 'Amount', 'CreatedBy', 'CreatedAt'
   ]);

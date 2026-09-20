@@ -2,8 +2,8 @@
  * AuditLog sheet: LogId | Timestamp | UserEmail | Action | EntityType | EntityId | Summary
  *
  * Every create/update/deactivate/reactivate across Clients, Load Bringers,
- * Settings, and every trip saved, is logged here with the signed-in user's
- * email (available because the web app is
+ * Trucks, Trailers, Drivers, Settings, and every trip saved, is logged here
+ * with the signed-in user's email (available because the web app is
  * restricted to the Workspace domain, not opened to anonymous access).
  * Logging is best-effort and never blocks or fails the action it's
  * recording - a Sheets write error here is swallowed, not thrown.
