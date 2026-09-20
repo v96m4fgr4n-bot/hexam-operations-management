@@ -1084,7 +1084,7 @@
     google.script.run.withSuccessHandler(function (trucks) {
       STATE.trucks = trucks;
       STATE.fleetLoaded.trucks = true;
-      renderFleetHero();
+      try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the truck list itself */ }
       populateDriverTruckSelect_(trucks);
       if (!trucks.length) {
         wrap.innerHTML = '<div class="empty-state">No trucks yet.</div>';
@@ -1190,7 +1190,7 @@
     google.script.run.withSuccessHandler(function (trailers) {
       STATE.trailers = trailers;
       STATE.fleetLoaded.trailers = true;
-      renderFleetHero();
+      try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the trailer list itself */ }
       if (!trailers.length) {
         wrap.innerHTML = '<div class="empty-state">No trailers yet.</div>';
         return;
@@ -1286,7 +1286,7 @@
     google.script.run.withSuccessHandler(function (drivers) {
       STATE.driversAll = drivers;
       STATE.fleetLoaded.drivers = true;
-      renderFleetHero();
+      try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the driver list itself */ }
       if (!drivers.length) {
         wrap.innerHTML = '<div class="empty-state">No drivers yet.</div>';
         return;
