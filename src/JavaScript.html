@@ -194,6 +194,38 @@
     });
   });
 
+  $('rate-card-download-btn').addEventListener('click', function () {
+    var btn = this;
+    var msg = $('rate-card-msg');
+    clearMsg(msg);
+    var originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Preparing…';
+
+    google.script.run.withSuccessHandler(function (result) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+
+      var byteChars = atob(result.base64);
+      var byteNumbers = new Array(byteChars.length);
+      for (var i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      var blob = new Blob([new Uint8Array(byteNumbers)], { type: result.mimeType });
+      var url = URL.createObjectURL(blob);
+
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = result.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+      showMsg(msg, err.message || String(err), true);
+    }).downloadRateCard($('rate-card-distances').value);
+  });
+
   /* ---------- Dashboard ---------- */
 
   function loadDashboard() {
