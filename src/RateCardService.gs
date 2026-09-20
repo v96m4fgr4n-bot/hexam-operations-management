@@ -1,13 +1,30 @@
 /**
  * Branded PDF rate card: the same quote formula New Trip uses
  * (computeTripQuote_ in TripService.gs), run for a list of one-way
- * distances with no toll/ZRP/VID, load bringer, or bricks - a clean
- * delivery-only baseline a dispatcher can hand out or reference without
- * opening the app. Reuses brandedDocHeader_()/boldRow_() from
+ * distances. Bakes in an averaged $100 combined ZRP + VID + load-referral
+ * fee on every distance (a typical trip incurs some mix of these; toll fee
+ * and brick cost still vary too much per trip to average sensibly, so
+ * those stay excluded). Reuses brandedDocHeader_()/boldRow_() from
  * InvoiceService.gs rather than duplicating the PDF build-up.
  */
 
 var DEFAULT_RATE_CARD_DISTANCES_ = [35, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 200, 220, 240, 270];
+
+// Combined average of ZRP fee + VID fee + load-referral levy baked into
+// every rate card row - split so the levy uses Settings' actual
+// LOAD_LEVY_AMOUNT (capped at the average total) and ZRP/VID split the
+// remainder evenly, keeping each piece consistent with how
+// computeTripQuote_ actually treats it (ZRP/VID are margined trip
+// expenses, the load levy isn't).
+var RATE_CARD_AVG_EXTRAS_TOTAL_ = 100;
+
+function rateCardAvgExtras_(settings) {
+  var loadPortion = Math.min(settings.loadLevyAmount, RATE_CARD_AVG_EXTRAS_TOTAL_);
+  var remaining = round2_(RATE_CARD_AVG_EXTRAS_TOTAL_ - loadPortion);
+  var zrpFee = round2_(remaining / 2);
+  var vidFee = round2_(remaining - zrpFee);
+  return { zrpFee: zrpFee, vidFee: vidFee, loadLevyAmount: loadPortion };
+}
 
 function parseRateCardDistances_(distancesCsv) {
   var distances;
@@ -36,18 +53,28 @@ function buildRateCardPdf_(distances) {
 
   brandedDocHeader_(body, 'DISTANCE RATE CARD');
 
+  var extras = rateCardAvgExtras_(settings);
+
   body.appendParagraph(
-    'Delivery-only baseline quote by one-way distance. Toll/ZRP/VID fees, a load ' +
-    'bringer\'s levy, or brick cost are added on top for a specific trip.'
+    'Quote by one-way distance, including an averaged ' + formatCurrency_(RATE_CARD_AVG_EXTRAS_TOTAL_, symbol) +
+    ' combined ZRP + VID + load-referral fee per trip. Toll fee and brick cost still vary too ' +
+    'much per trip to average here and are added on top for a specific trip.'
   ).setFontSize(9).setForegroundColor('#7B8899').setSpacingAfter(14);
 
-  var rows = [['Distance', 'Round trip', 'Fuel cost', 'Margin', 'Quote']];
+  var rows = [['Distance', 'Round trip', 'Fuel cost', 'Fees (avg)', 'Margin', 'Quote']];
   distances.forEach(function (km) {
-    var quote = computeTripQuote_({ oneWayDistanceKm: km });
+    var quote = computeTripQuote_({
+      oneWayDistanceKm: km,
+      tollFee: 0,
+      zrpFee: extras.zrpFee,
+      vidFee: extras.vidFee,
+      loadBringerName: extras.loadLevyAmount > 0 ? 'Average referral' : ''
+    });
     rows.push([
       km + ' km',
       quote.roundTripDistanceKm.toFixed(0) + ' km',
       formatCurrency_(quote.fuelCost, symbol),
+      formatCurrency_(RATE_CARD_AVG_EXTRAS_TOTAL_, symbol),
       formatCurrency_(quote.marginAmount, symbol),
       formatCurrency_(quote.totalCost, symbol)
     ]);
@@ -59,7 +86,10 @@ function buildRateCardPdf_(distances) {
   body.appendParagraph(
     'Generated ' + new Date().toDateString() + '. Fuel price ' +
     formatCurrency_(settings.fuelPricePerLitre, symbol) + '/L, consumption ' +
-    settings.fuelConsumptionKmPerL + ' km/L, margin ' + settings.companyMarginPercent + '%.'
+    settings.fuelConsumptionKmPerL + ' km/L, margin ' + settings.companyMarginPercent + '%. ' +
+    'Averaged fees split as ZRP ' + formatCurrency_(extras.zrpFee, symbol) + ' + VID ' +
+    formatCurrency_(extras.vidFee, symbol) + ' + load levy ' + formatCurrency_(extras.loadLevyAmount, symbol) +
+    ' (load levy from Settings, margin not applied to it).'
   ).setFontSize(9).setForegroundColor('#7B8899').setSpacingBefore(14);
 
   doc.saveAndClose();
