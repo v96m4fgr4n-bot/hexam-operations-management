@@ -32,9 +32,13 @@ spreadsheet.
   Money values show thousand separators; stat sections carry `aria-busy`
   while loading.
 - **New Trip** — quote a trip; client and load bringer are both typed
-  freehand (see below), with a live client-side cost preview. Optionally
-  records an unbilled "other expense" and picks an assigned driver from
-  Fleet.
+  freehand (see below), with a live client-side cost preview. Only the
+  fields every trip needs (client, destination, distance, order type,
+  toll/ZRP/VID) are visible by default; other fee, other expense, load
+  bringer, assigned driver, and discount are each behind their own
+  "+ Add X" button, matching the pattern each one records — press it,
+  fill in the one or two fields it asks for. Nothing typed into a
+  since-collapsed section is submitted.
 - **Trip History** — every saved trip, newest first, with a color-coded
   Profit column (green = profitable, red = loss, with the margin %) and a
   Payment column ("Record payment" captures what was actually collected

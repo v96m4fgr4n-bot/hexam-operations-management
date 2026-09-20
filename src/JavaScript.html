@@ -507,16 +507,41 @@
     updateTripPreview();
   });
 
-  $('trip-discount-toggle').addEventListener('click', function () {
-    var fields = $('trip-discount-fields');
-    var showing = !fields.hidden;
-    if (showing) {
-      $('trip-discount-amount').value = 0;
-      $('trip-discount-reason').value = '';
-    }
-    fields.hidden = showing;
-    this.textContent = showing ? '+ Add discount' : '- Remove discount';
-    updateTripPreview();
+  /** Wires a "+ Add X" button that reveals a hidden field group, and
+   *  resets that group back to empty/default whenever it's hidden again
+   *  (typed-then-hidden-again fields must never silently submit). */
+  function bindOptionalToggle_(toggleId, fieldsId, showLabel, hideLabel, resetFn) {
+    $(toggleId).addEventListener('click', function () {
+      var fields = $(fieldsId);
+      var showing = !fields.hidden;
+      if (showing) resetFn();
+      fields.hidden = showing;
+      this.textContent = showing ? showLabel : hideLabel;
+      updateTripPreview();
+    });
+  }
+
+  bindOptionalToggle_('trip-other-fee-toggle', 'trip-other-fee-fields', '+ Add other fee', '- Remove other fee', function () {
+    $('trip-other-desc').value = '';
+    $('trip-other-amount').value = 0;
+  });
+
+  bindOptionalToggle_('trip-expense-toggle', 'trip-expense-fields', '+ Add other expense', '- Remove other expense', function () {
+    $('trip-expense-desc').value = '';
+    $('trip-expense-amount').value = 0;
+  });
+
+  bindOptionalToggle_('trip-bringer-toggle', 'trip-bringer-fields', '+ Add load bringer', '- Remove load bringer', function () {
+    $('trip-load-bringer-name').value = '';
+  });
+
+  bindOptionalToggle_('trip-driver-toggle', 'trip-driver-fields', '+ Assign driver', '- Remove driver', function () {
+    $('trip-driver').value = '';
+  });
+
+  bindOptionalToggle_('trip-discount-toggle', 'trip-discount-fields', '+ Add discount', '- Remove discount', function () {
+    $('trip-discount-amount').value = 0;
+    $('trip-discount-reason').value = '';
   });
 
   function updateTripPreview() {
@@ -609,8 +634,16 @@
       showMsg(msg, 'Trip saved - quote total ' + money(result.trip.totalCost) + '.', false);
       $('trip-form').reset();
       $('trip-brick-qty-field').hidden = true;
-      $('trip-discount-fields').hidden = true;
-      $('trip-discount-toggle').textContent = '+ Add discount';
+      [
+        ['trip-other-fee-fields', 'trip-other-fee-toggle', '+ Add other fee'],
+        ['trip-expense-fields', 'trip-expense-toggle', '+ Add other expense'],
+        ['trip-bringer-fields', 'trip-bringer-toggle', '+ Add load bringer'],
+        ['trip-driver-fields', 'trip-driver-toggle', '+ Assign driver'],
+        ['trip-discount-fields', 'trip-discount-toggle', '+ Add discount']
+      ].forEach(function (t) {
+        $(t[0]).hidden = true;
+        $(t[1]).textContent = t[2];
+      });
       $('trip-client-match-hint').textContent = 'Type a name — matches an existing client, or adds a new one';
       prefillTripFeesFromSettings();
       updateTripPreview();

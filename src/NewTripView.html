@@ -67,49 +67,58 @@
       </div>
     </div>
 
-    <div class="form-grid">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+      <button type="button" class="btn ghost" id="trip-other-fee-toggle">+ Add other fee</button>
+      <button type="button" class="btn ghost" id="trip-expense-toggle">+ Add other expense</button>
+      <button type="button" class="btn ghost" id="trip-bringer-toggle">+ Add load bringer</button>
+      <button type="button" class="btn ghost" id="trip-driver-toggle">+ Assign driver</button>
+      <button type="button" class="btn ghost" id="trip-discount-toggle">+ Add discount</button>
+    </div>
+
+    <div class="form-grid" id="trip-other-fee-fields" hidden style="margin-top:12px;">
       <div class="field">
         <label for="trip-other-desc">
-          Other fee description (optional)
+          Other fee description
           <span class="hint">Billed to the client &mdash; part of the quote total</span>
         </label>
         <input id="trip-other-desc" type="text" placeholder="e.g. weighbridge fee">
       </div>
       <div class="field">
-        <label for="trip-other-amount">Other fee amount</label>
+        <label for="trip-other-amount">Amount</label>
         <input id="trip-other-amount" type="number" min="0" step="0.01" value="0">
       </div>
+    </div>
+
+    <div class="form-grid" id="trip-expense-fields" hidden style="margin-top:12px;">
       <div class="field">
         <label for="trip-expense-desc">
-          Other expense (optional)
+          Other expense description
           <span class="hint">A real cost for this trip, e.g. a tow or extra fuel top-up &mdash; NOT billed to the client, only reduces this trip's tracked profit</span>
         </label>
         <input id="trip-expense-desc" type="text" placeholder="e.g. breakdown assistance">
       </div>
       <div class="field">
-        <label for="trip-expense-amount">Other expense amount</label>
+        <label for="trip-expense-amount">Amount</label>
         <input id="trip-expense-amount" type="number" min="0" step="0.01" value="0">
       </div>
     </div>
 
-    <h3 style="margin-top:20px;">Load Bringer (optional)</h3>
-    <div class="form-grid">
+    <div class="form-grid" id="trip-bringer-fields" hidden style="margin-top:12px;">
       <div class="field">
         <label for="trip-load-bringer-name">
           Referred by
-          <span class="hint">Leave blank if no one referred this load. Type a name &mdash; matches an existing bringer, or adds a new one &mdash; and the load levy is added to the client's total and paid out to them</span>
+          <span class="hint">Type a name &mdash; matches an existing bringer, or adds a new one &mdash; and the load levy is added to the client's total and paid out to them</span>
         </label>
         <input id="trip-load-bringer-name" type="text" list="trip-load-bringer-datalist" autocomplete="off">
         <datalist id="trip-load-bringer-datalist"></datalist>
       </div>
     </div>
 
-    <h3 style="margin-top:20px;">Assigned Driver (optional)</h3>
-    <div class="form-grid">
+    <div class="form-grid" id="trip-driver-fields" hidden style="margin-top:12px;">
       <div class="field">
         <label for="trip-driver">
           Driver
-          <span class="hint">Picked from the Fleet driver list &mdash; leave unassigned if not yet decided</span>
+          <span class="hint">Picked from the Fleet driver list</span>
         </label>
         <select id="trip-driver">
           <option value="">No driver assigned</option>
@@ -117,12 +126,6 @@
       </div>
     </div>
 
-    <div class="field full">
-      <label for="trip-notes">Notes (optional)</label>
-      <textarea id="trip-notes"></textarea>
-    </div>
-
-    <button type="button" class="btn ghost" id="trip-discount-toggle">+ Add discount</button>
     <div class="form-grid" id="trip-discount-fields" hidden style="margin-top:12px;">
       <div class="field">
         <label for="trip-discount-amount">Discount amount</label>
@@ -132,6 +135,11 @@
         <label for="trip-discount-reason">Reason (optional)</label>
         <input id="trip-discount-reason" type="text" placeholder="e.g. repeat client">
       </div>
+    </div>
+
+    <div class="field full" style="margin-top:12px;">
+      <label for="trip-notes">Notes (optional)</label>
+      <textarea id="trip-notes"></textarea>
     </div>
 
     <div class="cost-summary" id="trip-cost-summary">
