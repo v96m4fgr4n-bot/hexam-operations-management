@@ -104,20 +104,33 @@
 
   /* ---------- Bootstrap ---------- */
 
+  /** One server call at a time rather than several at once - firing
+   *  multiple google.script.run calls simultaneously has been unreliable
+   *  in the field (some never resolve), so each step only starts once
+   *  the previous one has actually finished. */
   function loadInitialData() {
     google.script.run.withSuccessHandler(function (settings) {
       STATE.settings = settings;
       populateSettingsForm(settings);
       prefillTripFeesFromSettings();
       updateTripPreview();
+      loadClientsForTripForm(function () {
+        loadLoadBringersForTripForm(function () {
+          loadDriversForTripForm(function () {
+            loadDashboard();
+          });
+        });
+      });
     }).withFailureHandler(function (err) {
       showMsg($('trip-msg'), err.message || String(err), true);
+      loadClientsForTripForm(function () {
+        loadLoadBringersForTripForm(function () {
+          loadDriversForTripForm(function () {
+            loadDashboard();
+          });
+        });
+      });
     }).getSettings();
-
-    loadClientsForTripForm();
-    loadLoadBringersForTripForm();
-    loadDriversForTripForm();
-    loadDashboard();
   }
 
   /* ---------- Settings ---------- */
@@ -235,13 +248,15 @@
 
   /* ---------- Clients ---------- */
 
-  function loadClientsForTripForm() {
+  function loadClientsForTripForm(next) {
     google.script.run.withSuccessHandler(function (clients) {
       STATE.clients = clients;
       $('trip-client-datalist').innerHTML = clients
         .map(function (c) { return '<option value="' + escapeHtml(c.name) + '">'; }).join('');
+      if (next) next();
     }).withFailureHandler(function (err) {
       showMsg($('trip-msg'), err.message || String(err), true);
+      if (next) next();
     }).getClients(false);
   }
 
@@ -363,13 +378,15 @@
 
   /* ---------- Load Bringers ---------- */
 
-  function loadLoadBringersForTripForm() {
+  function loadLoadBringersForTripForm(next) {
     google.script.run.withSuccessHandler(function (bringers) {
       STATE.loadBringers = bringers;
       $('trip-load-bringer-datalist').innerHTML = bringers
         .map(function (b) { return '<option value="' + escapeHtml(b.name) + '">'; }).join('');
+      if (next) next();
     }).withFailureHandler(function (err) {
       showMsg($('trip-msg'), err.message || String(err), true);
+      if (next) next();
     }).getLoadBringers(false);
   }
 
@@ -485,7 +502,7 @@
 
   /* ---------- New Trip ---------- */
 
-  function loadDriversForTripForm() {
+  function loadDriversForTripForm(next) {
     var fired = false;
     var watchdog = setTimeout(function () {
       fired = true;
@@ -494,7 +511,7 @@
         hint.innerHTML = 'Driver list is taking longer than expected to load. ' +
           '<a href="#" id="trip-driver-retry">Try again</a>';
         var retry = $('trip-driver-retry');
-        if (retry) retry.addEventListener('click', function (e) { e.preventDefault(); loadDriversForTripForm(); });
+        if (retry) retry.addEventListener('click', function (e) { e.preventDefault(); loadDriversForTripForm(next); });
       }
     }, 12000);
 
@@ -505,9 +522,11 @@
       select.innerHTML = '<option value="">No driver assigned</option>' +
         drivers.map(function (d) { return '<option value="' + escapeHtml(d.id) + '">' + escapeHtml(d.name) + '</option>'; }).join('');
       select.value = current;
+      if (next) next();
     }).withFailureHandler(function (err) {
       if (!fired) clearTimeout(watchdog);
       showMsg($('trip-msg'), err.message || String(err), true);
+      if (next) next();
     }).getDrivers(false);
   }
 
@@ -1084,10 +1103,18 @@
 
   /* ---------- Fleet ---------- */
 
+  /** Loads trucks, then trailers, then drivers, one at a time rather than
+   *  all three at once - firing several google.script.run calls
+   *  simultaneously has been unreliable in the field, so each list only
+   *  starts once the previous one has actually finished (succeeded or
+   *  failed). Slower than firing all three together, but reliable beats
+   *  fast here. */
   function loadFleet() {
-    loadTrucks();
-    loadTrailers();
-    loadDrivers();
+    loadTrucks(function () {
+      loadTrailers(function () {
+        loadDrivers();
+      });
+    });
   }
 
   /** Server sends Dates as strings; this normalizes to yyyy-MM-dd for a
@@ -1146,9 +1173,9 @@
 
   /* ----- Trucks ----- */
 
-  function loadTrucks() {
+  function loadTrucks(next) {
     var wrap = $('trucks-table-wrap');
-    var clearWatchdog = startLoadWatchdog_(wrap, loadTrucks);
+    var clearWatchdog = startLoadWatchdog_(wrap, function () { loadTrucks(next); });
     google.script.run.withSuccessHandler(function (trucks) {
       clearWatchdog();
       STATE.trucks = trucks;
@@ -1157,6 +1184,7 @@
       try { populateDriverTruckSelect_(trucks); } catch (selectErr) { /* non-fatal: the driver-form truck select is secondary to the truck list itself */ }
       if (!trucks.length) {
         wrap.innerHTML = '<div class="empty-state">No trucks yet.</div>';
+        if (next) next();
         return;
       }
       var rows = trucks.map(function (t) {
@@ -1177,10 +1205,12 @@
           if (truck) startEditTruck(truck);
         });
       });
+      if (next) next();
     }).withFailureHandler(function (err) {
       clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
+      if (next) next();
     }).getTrucks();
   }
 
@@ -1255,9 +1285,9 @@
 
   /* ----- Trailers ----- */
 
-  function loadTrailers() {
+  function loadTrailers(next) {
     var wrap = $('trailers-table-wrap');
-    var clearWatchdog = startLoadWatchdog_(wrap, loadTrailers);
+    var clearWatchdog = startLoadWatchdog_(wrap, function () { loadTrailers(next); });
     google.script.run.withSuccessHandler(function (trailers) {
       clearWatchdog();
       STATE.trailers = trailers;
@@ -1265,6 +1295,7 @@
       try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the trailer list itself */ }
       if (!trailers.length) {
         wrap.innerHTML = '<div class="empty-state">No trailers yet.</div>';
+        if (next) next();
         return;
       }
       var rows = trailers.map(function (t) {
@@ -1284,10 +1315,12 @@
           if (trailer) startEditTrailer(trailer);
         });
       });
+      if (next) next();
     }).withFailureHandler(function (err) {
       clearWatchdog();
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
       $('fleet-hero').removeAttribute('aria-busy');
+      if (next) next();
     }).getTrailers();
   }
 
