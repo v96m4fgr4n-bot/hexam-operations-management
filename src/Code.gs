@@ -87,6 +87,7 @@ var RPC_TEST_HTML_ = '<!DOCTYPE html><html><head><meta name="viewport" content="
   '<div class="row pending" id="row-trucks"><strong>Test 2a: getTrucks() (fired with 2b, 2c)</strong><div id="status-trucks">Not started</div><pre id="out-trucks"></pre></div>' +
   '<div class="row pending" id="row-trailers"><strong>Test 2b: getTrailers() (fired with 2a, 2c)</strong><div id="status-trailers">Not started</div><pre id="out-trailers"></pre></div>' +
   '<div class="row pending" id="row-drivers3"><strong>Test 2c: getDrivers() (fired with 2a, 2b)</strong><div id="status-drivers3">Not started</div><pre id="out-drivers3"></pre></div>' +
+  '<div class="row pending" id="row-fetch"><strong>Test 3: plain fetch() call (not google.script.run)</strong><div id="status-fetch">Not started</div><pre id="out-fetch"></pre></div>' +
   '<script>' +
   'function track(rowId, statusId, outId, label, fn) {' +
   '  var start = Date.now();' +
@@ -110,8 +111,33 @@ var RPC_TEST_HTML_ = '<!DOCTYPE html><html><head><meta name="viewport" content="
   '      out.textContent = err.message || String(err);' +
   '    })[fn]();' +
   '}' +
+  'function runFetchTest() {' +
+  '  var start = Date.now();' +
+  '  var row = document.getElementById("row-fetch");' +
+  '  var status = document.getElementById("status-fetch");' +
+  '  var out = document.getElementById("out-fetch");' +
+  '  var timer = setInterval(function () {' +
+  '    status.textContent = "Waiting... " + Math.round((Date.now() - start) / 1000) + "s";' +
+  '  }, 500);' +
+  '  var url = window.location.href.split("?")[0] + "?debug=drivers";' +
+  '  fetch(url, { credentials: "include" })' +
+  '    .then(function (r) { return r.text(); })' +
+  '    .then(function (text) {' +
+  '      clearInterval(timer);' +
+  '      row.className = "row ok";' +
+  '      status.textContent = "SUCCESS after " + Math.round((Date.now() - start) / 1000) + "s";' +
+  '      out.textContent = text;' +
+  '    })' +
+  '    .catch(function (err) {' +
+  '      clearInterval(timer);' +
+  '      row.className = "row fail";' +
+  '      status.textContent = "FAILED after " + Math.round((Date.now() - start) / 1000) + "s";' +
+  '      out.textContent = err.message || String(err);' +
+  '    });' +
+  '}' +
   'function runAll() {' +
   '  track("row-single", "status-single", "out-single", "getDrivers");' +
+  '  runFetchTest();' +
   '  setTimeout(function () {' +
   '    track("row-trucks", "status-trucks", "out-trucks", "getTrucks");' +
   '    track("row-trailers", "status-trailers", "out-trailers", "getTrailers");' +
