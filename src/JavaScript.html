@@ -1,8 +1,6 @@
 <script>
   var STATE = {
-    settings: null, clients: [], loadBringers: [], editingClientId: null, editingLoadBringerId: null,
-    trucks: [], trailers: [], driversAll: [], editingTruckId: null, editingTrailerId: null, editingDriverId: null,
-    fleetLoaded: { trucks: false, trailers: false, drivers: false }
+    settings: null, clients: [], loadBringers: [], editingClientId: null, editingLoadBringerId: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -78,7 +76,6 @@
     if (viewName === 'load-bringers') loadLoadBringers();
     if (viewName === 'accounting') loadAccounting();
     if (viewName === 'trends') loadTrends();
-    if (viewName === 'fleet') loadFleet();
     if (viewName === 'audit-log') loadAuditLog();
   }
 
@@ -106,10 +103,10 @@
 
   /** Loads settings, then clients, then load bringers, one at a time
    *  rather than all at once (firing multiple google.script.run calls
-   *  simultaneously has been unreliable in the field). Drivers and the
-   *  Dashboard are deliberately NOT chained behind this - each loads
-   *  independently, so a problem loading one thing (e.g. drivers) can
-   *  never block everything else on the page from ever loading. */
+   *  simultaneously has been unreliable in the field). The Dashboard is
+   *  deliberately NOT chained behind this - it loads independently, so a
+   *  problem loading one thing can never block everything else on the
+   *  page from ever loading. */
   function loadInitialData() {
     google.script.run.withSuccessHandler(function (settings) {
       STATE.settings = settings;
@@ -126,7 +123,6 @@
       });
     }).getSettings();
 
-    loadDriversForTripForm();
     loadDashboard();
   }
 
@@ -221,7 +217,6 @@
     $('dash-avg-quote').textContent = money(s.averageQuoteValue);
     $('dash-active-clients').textContent = s.activeClientCount;
     $('dash-active-bringers').textContent = s.activeLoadBringerCount;
-    $('dash-active-drivers').textContent = s.activeDriverCount;
 
     ['dash-hero', 'dash-month-grid', 'dash-overall-grid'].forEach(function (id) {
       $(id).removeAttribute('aria-busy');
@@ -499,34 +494,6 @@
 
   /* ---------- New Trip ---------- */
 
-  function loadDriversForTripForm(next) {
-    var fired = false;
-    var watchdog = setTimeout(function () {
-      fired = true;
-      var hint = $('trip-driver-fields').querySelector('.hint');
-      if (hint) {
-        hint.innerHTML = 'Driver list is taking longer than expected to load. ' +
-          '<a href="#" id="trip-driver-retry">Try again</a>';
-        var retry = $('trip-driver-retry');
-        if (retry) retry.addEventListener('click', function (e) { e.preventDefault(); loadDriversForTripForm(next); });
-      }
-    }, 12000);
-
-    google.script.run.withSuccessHandler(function (drivers) {
-      if (!fired) clearTimeout(watchdog);
-      var select = $('trip-driver');
-      var current = select.value;
-      select.innerHTML = '<option value="">No driver assigned</option>' +
-        drivers.map(function (d) { return '<option value="' + escapeHtml(d.id) + '">' + escapeHtml(d.name) + '</option>'; }).join('');
-      select.value = current;
-      if (next) next();
-    }).withFailureHandler(function (err) {
-      if (!fired) clearTimeout(watchdog);
-      showMsg($('trip-msg'), err.message || String(err), true);
-      if (next) next();
-    }).getDrivers(false);
-  }
-
   function prefillTripFeesFromSettings() {
     if (!STATE.settings) return;
     $('trip-toll').value = STATE.settings.defaultTollFee;
@@ -583,10 +550,6 @@
 
   bindOptionalToggle_('trip-bringer-toggle', 'trip-bringer-fields', '+ Add load bringer', '- Remove load bringer', function () {
     $('trip-load-bringer-name').value = '';
-  });
-
-  bindOptionalToggle_('trip-driver-toggle', 'trip-driver-fields', '+ Assign driver', '- Remove driver', function () {
-    $('trip-driver').value = '';
   });
 
   bindOptionalToggle_('trip-discount-toggle', 'trip-discount-fields', '+ Add discount', '- Remove discount', function () {
@@ -688,7 +651,6 @@
         ['trip-other-fee-fields', 'trip-other-fee-toggle', '+ Add other fee'],
         ['trip-expense-fields', 'trip-expense-toggle', '+ Add other expense'],
         ['trip-bringer-fields', 'trip-bringer-toggle', '+ Add load bringer'],
-        ['trip-driver-fields', 'trip-driver-toggle', '+ Assign driver'],
         ['trip-discount-fields', 'trip-discount-toggle', '+ Add discount']
       ].forEach(function (t) {
         $(t[0]).hidden = true;
@@ -721,7 +683,6 @@
       otherExpenseDescription: $('trip-expense-desc').value,
       otherExpenseAmount: Number($('trip-expense-amount').value) || 0,
       loadBringerName: $('trip-load-bringer-name').value,
-      driverId: $('trip-driver').value,
       discountAmount: discountShown ? (Number($('trip-discount-amount').value) || 0) : 0,
       discountReason: discountShown ? $('trip-discount-reason').value : '',
       notes: $('trip-notes').value
@@ -758,7 +719,6 @@
           '<td>' + new Date(t.tripDate).toLocaleDateString() + '</td>' +
           '<td>' + escapeHtml(t.clientName) + '</td>' +
           '<td>' + escapeHtml(t.destination) + '</td>' +
-          '<td>' + (t.driverName ? escapeHtml(t.driverName) : '&mdash;') + '</td>' +
           '<td>' + t.roundTripDistanceKm.toFixed(2) + ' km</td>' +
           '<td>' + money(t.fuelCost) + '</td>' +
           '<td>' + money(t.tripExpenses) + '</td>' +
@@ -775,7 +735,7 @@
           '</td>' +
           '</tr>';
       }).join('');
-      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Driver</th><th>Round trip</th><th>Fuel</th><th>Expenses</th><th>Margin</th><th>Load bringer (levy)</th><th>Other expense (unbilled)</th><th>Discount</th><th>Profit</th><th>Quote</th><th>Payment</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Client</th><th>Destination</th><th>Round trip</th><th>Fuel</th><th>Expenses</th><th>Margin</th><th>Load bringer (levy)</th><th>Other expense (unbilled)</th><th>Discount</th><th>Profit</th><th>Quote</th><th>Payment</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
 
       wrap.querySelectorAll('[data-invoice]').forEach(function (btn) {
         btn.addEventListener('click', function () { downloadInvoice_(btn.getAttribute('data-invoice'), btn); });
@@ -996,7 +956,7 @@
   /* ---------- Trends ---------- */
 
   function loadTrends() {
-    var ids = ['trend-revenue-chart', 'trend-trips-chart', 'trend-clients-chart', 'trend-bringers-chart', 'trend-drivers-chart'];
+    var ids = ['trend-revenue-chart', 'trend-trips-chart', 'trend-clients-chart', 'trend-bringers-chart'];
     google.script.run.withSuccessHandler(function (data) {
       $('trend-revenue-chart').innerHTML = svgDualBars_(data.dailyTrend, 'revenue', 'profit');
       $('trend-trips-chart').innerHTML = svgSingleBars_(data.dailyTrend, 'tripCount', 'var(--brand-blue)', function (v) { return String(v); });
@@ -1006,9 +966,6 @@
       $('trend-bringers-chart').innerHTML = data.topLoadBringers.length
         ? svgRankedBars_(data.topLoadBringers, 'tripCount', 'name', function (v) { return v + (v === 1 ? ' load' : ' loads'); }, 'var(--brand-orange)')
         : '<div class="empty-state">No load bringers recorded yet.</div>';
-      $('trend-drivers-chart').innerHTML = data.topDrivers.length
-        ? svgRankedBars_(data.topDrivers, 'tripCount', 'name', function (v) { return v + (v === 1 ? ' trip' : ' trips'); }, 'var(--brand-blue)')
-        : '<div class="empty-state">No trips with a driver assigned yet.</div>';
     }).withFailureHandler(function (err) {
       ids.forEach(function (id) { $(id).innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>'; });
     }).getTrendsData();
@@ -1097,417 +1054,6 @@
   function svgText_(x, y, text, color) {
     return '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-size="9" fill="' + color + '">' + escapeHtml(text) + '</text>';
   }
-
-  /* ---------- Fleet ---------- */
-
-  /** Loads trucks, then trailers, then drivers, one at a time rather than
-   *  all three at once - firing several google.script.run calls
-   *  simultaneously has been unreliable in the field, so each list only
-   *  starts once the previous one has actually finished (succeeded or
-   *  failed). Slower than firing all three together, but reliable beats
-   *  fast here. */
-  function loadFleet() {
-    loadTrucks(function () {
-      loadTrailers(function () {
-        loadDrivers();
-      });
-    });
-  }
-
-  /** Server sends Dates as strings; this normalizes to yyyy-MM-dd for a
-   *  date input. Assumes a positive UTC offset (this business is in
-   *  Africa/Harare, UTC+2), so a date-only ISO string parsed as UTC
-   *  midnight never shifts back a day in the browser's local time. */
-  function toDateInputValue_(v) {
-    if (!v) return '';
-    var d = new Date(v);
-    if (isNaN(d.getTime())) return '';
-    var mm = String(d.getMonth() + 1).padStart(2, '0');
-    var dd = String(d.getDate()).padStart(2, '0');
-    return d.getFullYear() + '-' + mm + '-' + dd;
-  }
-
-  function dateBadge_(status, dateValue) {
-    var dateStr = dateValue ? new Date(dateValue).toLocaleDateString() : 'Not set';
-    if (!status) return '<span class="badge neutral">Not set</span>';
-    var cls = status === 'expired' ? 'danger' : (status === 'due-soon' ? 'warn' : 'ok');
-    var label = status === 'expired' ? 'Expired' : (status === 'due-soon' ? 'Due soon' : 'OK');
-    return '<span class="badge ' + cls + '">' + label + '</span> ' + escapeHtml(dateStr);
-  }
-
-  function fleetStatusBadge_(status) {
-    var cls = status === 'Active' ? 'ok' : (status === 'In Repair' ? 'warn' : 'danger');
-    return '<span class="badge ' + cls + '">' + escapeHtml(status) + '</span>';
-  }
-
-  /** Renders once trucks, trailers, and drivers have all loaded - the
-   *  single number that actually matters on this page (how many vehicles
-   *  need attention today), not three raw tables to scan by eye. */
-  function renderFleetHero() {
-    var loaded = STATE.fleetLoaded;
-    if (!loaded.trucks || !loaded.trailers || !loaded.drivers) return;
-
-    var needsAttentionOf = function (list) {
-      return list.filter(function (v) {
-        return v.status !== 'Active' || v.roadworthyStatus === 'expired' || v.roadworthyStatus === 'due-soon' ||
-          v.serviceStatus === 'expired' || v.serviceStatus === 'due-soon';
-      }).length;
-    };
-    var attention = needsAttentionOf(STATE.trucks) + needsAttentionOf(STATE.trailers);
-    var activeDrivers = STATE.driversAll.filter(function (d) { return d.active; }).length;
-
-    var figureEl = $('fleet-attention-count');
-    figureEl.textContent = attention;
-    figureEl.className = 'hero-figure ' + (attention > 0 ? 'negative' : 'positive');
-    $('fleet-attention-caption').textContent = attention > 0 ? 'need attention' : 'All vehicles OK';
-
-    $('fleet-truck-count').textContent = STATE.trucks.length;
-    $('fleet-trailer-count').textContent = STATE.trailers.length;
-    $('fleet-driver-count').textContent = activeDrivers;
-
-    $('fleet-hero').removeAttribute('aria-busy');
-  }
-
-  /* ----- Trucks ----- */
-
-  function loadTrucks(next) {
-    var wrap = $('trucks-table-wrap');
-    var clearWatchdog = startLoadWatchdog_(wrap, function () { loadTrucks(next); });
-    google.script.run.withSuccessHandler(function (trucks) {
-      clearWatchdog();
-      STATE.trucks = trucks;
-      STATE.fleetLoaded.trucks = true;
-      try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the truck list itself */ }
-      try { populateDriverTruckSelect_(trucks); } catch (selectErr) { /* non-fatal: the driver-form truck select is secondary to the truck list itself */ }
-      if (!trucks.length) {
-        wrap.innerHTML = '<div class="empty-state">No trucks yet.</div>';
-        if (next) next();
-        return;
-      }
-      var rows = trucks.map(function (t) {
-        return '<tr>' +
-          '<td>' + escapeHtml(t.regNumber) + '</td>' +
-          '<td>' + dateBadge_(t.roadworthyStatus, t.roadworthyExpiry) + '</td>' +
-          '<td>' + dateBadge_(t.serviceStatus, t.nextServiceDue) + '</td>' +
-          '<td>' + fleetStatusBadge_(t.status) + '</td>' +
-          '<td>' + (t.assignedDriverName ? escapeHtml(t.assignedDriverName) : '&mdash;') + '</td>' +
-          '<td><button class="btn sm ghost" data-edit="' + escapeHtml(t.id) + '">Edit</button></td>' +
-          '</tr>';
-      }).join('');
-      wrap.innerHTML = '<table><thead><tr><th>Reg</th><th>Roadworthy</th><th>Service due</th><th>Status</th><th>Driver</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
-
-      wrap.querySelectorAll('[data-edit]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var truck = trucks.filter(function (t) { return t.id === btn.getAttribute('data-edit'); })[0];
-          if (truck) startEditTruck(truck);
-        });
-      });
-      if (next) next();
-    }).withFailureHandler(function (err) {
-      clearWatchdog();
-      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
-      $('fleet-hero').removeAttribute('aria-busy');
-      if (next) next();
-    }).getTrucks();
-  }
-
-  function populateDriverTruckSelect_(trucks) {
-    var select = $('driver-truck');
-    var current = select.value;
-    select.innerHTML = '<option value="">Unassigned</option>' +
-      trucks.map(function (t) { return '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(t.regNumber) + '</option>'; }).join('');
-    select.value = current;
-  }
-
-  function startEditTruck(truck) {
-    STATE.editingTruckId = truck.id;
-    $('truck-form-title').textContent = 'Edit truck';
-    $('truck-id').value = truck.id;
-    $('truck-reg').value = truck.regNumber;
-    $('truck-roadworthy').value = toDateInputValue_(truck.roadworthyExpiry);
-    $('truck-service').value = toDateInputValue_(truck.nextServiceDue);
-    $('truck-status').value = truck.status;
-    $('truck-submit').textContent = 'Save changes';
-    $('truck-cancel-edit').hidden = false;
-    openModal('truck-modal');
-  }
-
-  function resetTruckForm() {
-    STATE.editingTruckId = null;
-    $('truck-form-title').textContent = 'Add truck';
-    $('truck-form').reset();
-    $('truck-id').value = '';
-    $('truck-status').value = 'Active';
-    $('truck-submit').textContent = 'Add truck';
-    $('truck-cancel-edit').hidden = true;
-    closeModal('truck-modal');
-  }
-
-  $('truck-add-btn').addEventListener('click', function () {
-    resetTruckForm();
-    openModal('truck-modal');
-  });
-
-  $('truck-modal-close').addEventListener('click', resetTruckForm);
-  $('truck-cancel-edit').addEventListener('click', resetTruckForm);
-
-  $('truck-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var btn = $('truck-submit');
-    var msg = $('truck-msg');
-    clearMsg(msg);
-    btn.disabled = true;
-
-    var data = {
-      regNumber: $('truck-reg').value,
-      roadworthyExpiry: $('truck-roadworthy').value,
-      nextServiceDue: $('truck-service').value,
-      status: $('truck-status').value
-    };
-
-    var onDone = function () {
-      btn.disabled = false;
-      showMsg(msg, STATE.editingTruckId ? 'Truck updated.' : 'Truck added.', false);
-      resetTruckForm();
-      loadTrucks();
-    };
-    var onFail = function (err) { btn.disabled = false; showMsg(msg, err.message || String(err), true); };
-
-    if (STATE.editingTruckId) {
-      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail).updateTruck(STATE.editingTruckId, data);
-    } else {
-      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail).addTruck(data);
-    }
-  });
-
-  /* ----- Trailers ----- */
-
-  function loadTrailers(next) {
-    var wrap = $('trailers-table-wrap');
-    var clearWatchdog = startLoadWatchdog_(wrap, function () { loadTrailers(next); });
-    google.script.run.withSuccessHandler(function (trailers) {
-      clearWatchdog();
-      STATE.trailers = trailers;
-      STATE.fleetLoaded.trailers = true;
-      try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the trailer list itself */ }
-      if (!trailers.length) {
-        wrap.innerHTML = '<div class="empty-state">No trailers yet.</div>';
-        if (next) next();
-        return;
-      }
-      var rows = trailers.map(function (t) {
-        return '<tr>' +
-          '<td>' + escapeHtml(t.regNumber) + '</td>' +
-          '<td>' + dateBadge_(t.roadworthyStatus, t.roadworthyExpiry) + '</td>' +
-          '<td>' + dateBadge_(t.serviceStatus, t.nextServiceDue) + '</td>' +
-          '<td>' + fleetStatusBadge_(t.status) + '</td>' +
-          '<td><button class="btn sm ghost" data-edit="' + escapeHtml(t.id) + '">Edit</button></td>' +
-          '</tr>';
-      }).join('');
-      wrap.innerHTML = '<table><thead><tr><th>Reg</th><th>Roadworthy</th><th>Service due</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
-
-      wrap.querySelectorAll('[data-edit]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var trailer = trailers.filter(function (t) { return t.id === btn.getAttribute('data-edit'); })[0];
-          if (trailer) startEditTrailer(trailer);
-        });
-      });
-      if (next) next();
-    }).withFailureHandler(function (err) {
-      clearWatchdog();
-      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
-      $('fleet-hero').removeAttribute('aria-busy');
-      if (next) next();
-    }).getTrailers();
-  }
-
-  function startEditTrailer(trailer) {
-    STATE.editingTrailerId = trailer.id;
-    $('trailer-form-title').textContent = 'Edit trailer';
-    $('trailer-id').value = trailer.id;
-    $('trailer-reg').value = trailer.regNumber;
-    $('trailer-roadworthy').value = toDateInputValue_(trailer.roadworthyExpiry);
-    $('trailer-service').value = toDateInputValue_(trailer.nextServiceDue);
-    $('trailer-status').value = trailer.status;
-    $('trailer-submit').textContent = 'Save changes';
-    $('trailer-cancel-edit').hidden = false;
-    openModal('trailer-modal');
-  }
-
-  function resetTrailerForm() {
-    STATE.editingTrailerId = null;
-    $('trailer-form-title').textContent = 'Add trailer';
-    $('trailer-form').reset();
-    $('trailer-id').value = '';
-    $('trailer-status').value = 'Active';
-    $('trailer-submit').textContent = 'Add trailer';
-    $('trailer-cancel-edit').hidden = true;
-    closeModal('trailer-modal');
-  }
-
-  $('trailer-add-btn').addEventListener('click', function () {
-    resetTrailerForm();
-    openModal('trailer-modal');
-  });
-
-  $('trailer-modal-close').addEventListener('click', resetTrailerForm);
-  $('trailer-cancel-edit').addEventListener('click', resetTrailerForm);
-
-  $('trailer-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var btn = $('trailer-submit');
-    var msg = $('trailer-msg');
-    clearMsg(msg);
-    btn.disabled = true;
-
-    var data = {
-      regNumber: $('trailer-reg').value,
-      roadworthyExpiry: $('trailer-roadworthy').value,
-      nextServiceDue: $('trailer-service').value,
-      status: $('trailer-status').value
-    };
-
-    var onDone = function () {
-      btn.disabled = false;
-      showMsg(msg, STATE.editingTrailerId ? 'Trailer updated.' : 'Trailer added.', false);
-      resetTrailerForm();
-      loadTrailers();
-    };
-    var onFail = function (err) { btn.disabled = false; showMsg(msg, err.message || String(err), true); };
-
-    if (STATE.editingTrailerId) {
-      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail).updateTrailer(STATE.editingTrailerId, data);
-    } else {
-      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail).addTrailer(data);
-    }
-  });
-
-  /* ----- Drivers ----- */
-
-  function loadDrivers() {
-    var wrap = $('drivers-table-wrap');
-    var clearWatchdog = startLoadWatchdog_(wrap, loadDrivers);
-    google.script.run.withSuccessHandler(function (drivers) {
-      clearWatchdog();
-      STATE.driversAll = drivers;
-      STATE.fleetLoaded.drivers = true;
-      try { renderFleetHero(); } catch (heroErr) { /* non-fatal: the hero card is secondary to the driver list itself */ }
-      if (!drivers.length) {
-        wrap.innerHTML = '<div class="empty-state">No drivers yet.</div>';
-        return;
-      }
-      var truckRegById = {};
-      STATE.trucks.forEach(function (t) { truckRegById[t.id] = t.regNumber; });
-
-      var rows = drivers.map(function (d) {
-        return '<tr>' +
-          '<td>' + escapeHtml(d.name) + '</td>' +
-          '<td>' + escapeHtml(d.phone) + '</td>' +
-          '<td>' + (d.assignedTruckId ? escapeHtml(truckRegById[d.assignedTruckId] || d.assignedTruckId) : '&mdash;') + '</td>' +
-          '<td><span class="badge ' + (d.active ? 'ok' : 'neutral') + '">' + (d.active ? 'Active' : 'Inactive') + '</span></td>' +
-          '<td>' +
-            '<button class="btn sm ghost" data-edit="' + escapeHtml(d.id) + '">Edit</button> ' +
-            (d.active
-              ? '<button class="btn sm danger" data-deactivate="' + escapeHtml(d.id) + '">Deactivate</button>'
-              : '<button class="btn sm" data-reactivate="' + escapeHtml(d.id) + '">Reactivate</button>') +
-          '</td>' +
-          '</tr>';
-      }).join('');
-      wrap.innerHTML = '<table><thead><tr><th>Name</th><th>Phone</th><th>Truck</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
-
-      wrap.querySelectorAll('[data-edit]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var driver = drivers.filter(function (d) { return d.id === btn.getAttribute('data-edit'); })[0];
-          if (driver) startEditDriver(driver);
-        });
-      });
-      wrap.querySelectorAll('[data-deactivate]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          if (!confirm('Deactivate this driver?')) return;
-          setDriverActive_(btn.getAttribute('data-deactivate'), 'deactivateDriver');
-        });
-      });
-      wrap.querySelectorAll('[data-reactivate]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          setDriverActive_(btn.getAttribute('data-reactivate'), 'reactivateDriver');
-        });
-      });
-    }).withFailureHandler(function (err) {
-      clearWatchdog();
-      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message || String(err)) + '</div>';
-      $('fleet-hero').removeAttribute('aria-busy');
-    }).getDrivers(true);
-  }
-
-  function setDriverActive_(driverId, fnName) {
-    google.script.run.withSuccessHandler(function () {
-      loadDrivers();
-      loadTrucks();
-      loadDriversForTripForm();
-    }).withFailureHandler(function (err) {
-      alert(err.message || String(err));
-    })[fnName](driverId);
-  }
-
-  function startEditDriver(driver) {
-    STATE.editingDriverId = driver.id;
-    $('driver-form-title').textContent = 'Edit driver';
-    $('driver-id').value = driver.id;
-    $('driver-name').value = driver.name;
-    $('driver-phone').value = driver.phone;
-    $('driver-truck').value = driver.assignedTruckId || '';
-    $('driver-submit').textContent = 'Save changes';
-    $('driver-cancel-edit').hidden = false;
-    openModal('driver-modal');
-  }
-
-  function resetDriverForm() {
-    STATE.editingDriverId = null;
-    $('driver-form-title').textContent = 'Add driver';
-    $('driver-form').reset();
-    $('driver-id').value = '';
-    $('driver-submit').textContent = 'Add driver';
-    $('driver-cancel-edit').hidden = true;
-    closeModal('driver-modal');
-  }
-
-  $('driver-add-btn').addEventListener('click', function () {
-    resetDriverForm();
-    openModal('driver-modal');
-  });
-
-  $('driver-modal-close').addEventListener('click', resetDriverForm);
-  $('driver-cancel-edit').addEventListener('click', resetDriverForm);
-
-  $('driver-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var btn = $('driver-submit');
-    var msg = $('driver-msg');
-    clearMsg(msg);
-    btn.disabled = true;
-
-    var data = {
-      name: $('driver-name').value,
-      phone: $('driver-phone').value,
-      assignedTruckId: $('driver-truck').value
-    };
-
-    var onDone = function () {
-      btn.disabled = false;
-      showMsg(msg, STATE.editingDriverId ? 'Driver updated.' : 'Driver added.', false);
-      resetDriverForm();
-      loadDrivers();
-      loadTrucks();
-      loadDriversForTripForm();
-    };
-    var onFail = function (err) { btn.disabled = false; showMsg(msg, err.message || String(err), true); };
-
-    if (STATE.editingDriverId) {
-      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail).updateDriver(STATE.editingDriverId, data);
-    } else {
-      google.script.run.withSuccessHandler(onDone).withFailureHandler(onFail).addDriver(data);
-    }
-  });
 
   /* ---------- Audit Log ---------- */
 

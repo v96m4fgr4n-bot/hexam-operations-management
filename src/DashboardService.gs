@@ -63,7 +63,6 @@ function getDashboardSummary() {
   summary.averageQuoteValue = trips.length ? round2_(summary.allTimeRevenue / trips.length) : 0;
   summary.activeClientCount = getClients(false).length;
   summary.activeLoadBringerCount = getLoadBringers(false).length;
-  summary.activeDriverCount = getDrivers(false).length;
   summary.recentTrips = trips.slice(0, 5);
 
   return summary;

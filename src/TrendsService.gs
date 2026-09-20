@@ -1,8 +1,7 @@
 /**
  * Trend data derived from Trips - daily revenue/profit/trip volume for the
- * last 14 days, plus who's driving the business: top clients by revenue,
- * top load bringers by loads brought, and top drivers by trips completed
- * (only trips with a driver assigned count towards a driver's total).
+ * last 14 days, plus who's driving the business: top clients by revenue
+ * and top load bringers by loads brought.
  */
 function getTrendsData() {
   var trips = getTrips({});
@@ -22,7 +21,6 @@ function getTrendsData() {
 
   var clientTotals = {};
   var bringerTotals = {};
-  var driverTotals = {};
 
   trips.forEach(function (t) {
     var netProfit = round2_(t.marginAmount + t.brickCost - t.discountAmount - t.otherExpenseAmount);
@@ -40,9 +38,6 @@ function getTrendsData() {
     if (t.loadBringerName) {
       bringerTotals[t.loadBringerName] = (bringerTotals[t.loadBringerName] || 0) + 1;
     }
-    if (t.driverName) {
-      driverTotals[t.driverName] = (driverTotals[t.driverName] || 0) + 1;
-    }
   });
 
   var topClients = Object.keys(clientTotals)
@@ -55,16 +50,10 @@ function getTrendsData() {
     .sort(function (a, b) { return b.tripCount - a.tripCount; })
     .slice(0, 6);
 
-  var topDrivers = Object.keys(driverTotals)
-    .map(function (name) { return { name: name, tripCount: driverTotals[name] }; })
-    .sort(function (a, b) { return b.tripCount - a.tripCount; })
-    .slice(0, 6);
-
   return {
     currencySymbol: settings.currencySymbol,
     dailyTrend: days,
     topClients: topClients,
-    topLoadBringers: topLoadBringers,
-    topDrivers: topDrivers
+    topLoadBringers: topLoadBringers
   };
 }
