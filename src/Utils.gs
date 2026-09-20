@@ -50,6 +50,27 @@ function debugSpreadsheetProperty_() {
   return result;
 }
 
+/**
+ * TEMPORARY diagnostic - calls the three Fleet read functions directly
+ * (server-side, same as a doGet request) to see if the "did not match the
+ * expected pattern" error reproduces here too, or only over google.script.run.
+ */
+function debugFleetCalls_() {
+  var result = {};
+  [['trucks', function () { return getTrucks(); }],
+   ['trailers', function () { return getTrailers(); }],
+   ['drivers', function () { return getDrivers(true); }]].forEach(function (pair) {
+    var key = pair[0], fn = pair[1];
+    try {
+      var data = fn();
+      result[key] = { ok: true, count: data.length, sample: data[0] || null };
+    } catch (err) {
+      result[key] = { ok: false, error: err.message, stack: err.stack || null };
+    }
+  });
+  return result;
+}
+
 function generateId_(prefix) {
   return prefix + '_' + Utilities.getUuid();
 }
