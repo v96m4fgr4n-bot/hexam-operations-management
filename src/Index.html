@@ -73,6 +73,12 @@
     </div>
   </div>
 
+  <script>
+    /* Server-provided, not derived from window.location.href - inside
+       HtmlService's sandboxed iframe that doesn't reliably reflect this
+       page's real /exec URL. Used by Fleet's fetch()-based loading. */
+    var FLEET_API_BASE_ = <?!= JSON.stringify(ScriptApp.getService().getUrl()) ?>;
+  </script>
   <?!= include('JavaScript'); ?>
 </body>
 </html>
