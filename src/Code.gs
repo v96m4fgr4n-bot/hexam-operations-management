@@ -4,11 +4,6 @@
  */
 function doGet(e) {
   initializeSpreadsheet();
-
-  if (e && e.parameter && e.parameter.api) {
-    return handleFleetApi_(e.parameter.api);
-  }
-
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('Hexam Bricks Operations')
@@ -21,31 +16,4 @@ function doGet(e) {
  */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
-
-/**
- * Plain JSON GET endpoint for Fleet's read calls (trucks/trailers/drivers),
- * fetched client-side via fetch() rather than google.script.run - see
- * "Fleet loading" in JavaScript.html for why. Read-only; add/edit/
- * deactivate/reactivate stay on google.script.run.
- */
-function handleFleetApi_(apiName) {
-  var readers = {
-    trucks: function () { return getTrucks(); },
-    trailers: function () { return getTrailers(); },
-    drivers: function () { return getDrivers(true); }
-  };
-
-  var body;
-  if (!readers[apiName]) {
-    body = { success: false, error: 'Unknown api: ' + apiName };
-  } else {
-    try {
-      body = { success: true, data: readers[apiName]() };
-    } catch (err) {
-      body = { success: false, error: err.message };
-    }
-  }
-
-  return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
 }
